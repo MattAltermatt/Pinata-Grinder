@@ -374,6 +374,9 @@ subsequent gameplay.
 - **Material**: must explicitly use `Universal Render Pipeline/Particles/Unlit` —
   the built-in "Default-Particle" material is **not URP-compatible** and renders as
   magenta. Always set `psr.material = new Material(Shader.Find("Universal Render Pipeline/Particles/Unlit"))`.
+  This shader is listed in **Always Included Shaders** (`ProjectSettings/GraphicsSettings.asset`)
+  so that `Shader.Find()` works in stripped builds (WebGL, mobile). If adding new shaders
+  referenced only via `Shader.Find()`, they must also be added to that list.
 - 15 particles per burst, sphere emitter radius 0.3, self-destructs after 3 s
 - Only triggered by **weapon-killed** dead squares hitting the death line (not death-line kills)
 
@@ -426,6 +429,8 @@ All UI is built procedurally in `EconomyUI.Awake()` — no prefabs or editor-pla
 - No namespaces (single-developer project, kept flat for simplicity)
 - Follow URP 2D conventions: `SpriteRenderer` for 2D visuals, `Light2D` for lighting
 - Run In Background is enabled (Player Settings) so the game runs without editor focus
+- **WebGL compression** is disabled (`Player Settings > WebGL > Compression Format = Disabled`)
+  to avoid requiring server-side `Content-Encoding` headers. Deploy via `./deploy.sh`.
 - **[SerializeField] gotcha**: changing default values in code does NOT update already-
   serialized component values on scene objects. Use `manage_components set_property`
   (or the Inspector) to update live component values after changing field defaults.
