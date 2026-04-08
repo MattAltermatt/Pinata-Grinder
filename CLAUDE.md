@@ -10,8 +10,7 @@ Target platforms: **WebGL, Android, iOS**
 Unity version: **6000.4.1f1 (Unity 6)**
 Render pipeline: **URP 2D** (Universal Render Pipeline, 2D Renderer)
 Input: **New Input System** package (`UnityEngine.InputSystem`)
-Version control: **Plastic SCM** (Unity Version Control) — use `cm` CLI at
-`/Applications/PlasticSCM.app/Contents/Applications/cm.app/Contents/MacOS/cm`
+Version control: **Git** (migrated from Plastic SCM)
 
 ## Architecture
 
@@ -385,17 +384,11 @@ All UI is built procedurally in `EconomyUI.Awake()` — no prefabs or editor-pla
   serialized component values on scene objects. Use `manage_components set_property`
   (or the Inspector) to update live component values after changing field defaults.
 
-## Plastic SCM Workflow
+## Git Workflow
 
-```bash
-CM=/Applications/PlasticSCM.app/Contents/Applications/cm.app/Contents/MacOS/cm
-$CM status                    # see changed files
-$CM co <file>                 # check out a tracked file before editing
-$CM ci <files> -c "message"   # check in specific files
-```
-
-Always save the scene (`manage_scene save` or Ctrl+S) before checking in.
-The `ignore.conf` at the repo root lists ignored paths (Library/, Temp/, etc.).
+Standard git workflow. Always save the scene (`manage_scene save` or Ctrl+S) before
+committing. The `.gitignore` excludes Library/, Temp/, build artifacts, IDE files, and
+the old `.plastic/` directory.
 
 ## MCP / Unity Tool Notes
 
