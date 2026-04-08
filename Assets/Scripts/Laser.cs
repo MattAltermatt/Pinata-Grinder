@@ -192,7 +192,7 @@ public class Laser : MonoBehaviour
                 _beamLine.SetPosition(0, _emitPoint.position);
                 _beamLine.SetPosition(1, _target.transform.position);
                 _hitSparkleGo.transform.position = _target.transform.position;
-                _target.TakeDamage(_damagePerSecond * Time.deltaTime);
+                _target.TakeDamage(_damagePerSecond * Time.deltaTime, DamageType.Energy);
             }
             else
             {

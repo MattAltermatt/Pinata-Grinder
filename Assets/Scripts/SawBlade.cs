@@ -91,7 +91,7 @@ public class SawBlade : MonoBehaviour
     {
         if (collision.collider.TryGetComponent<PinataSquare>(out var sq))
         {
-            sq.TakeDamage(_damage);
+            sq.TakeDamage(_damage, DamageType.Physical);
             SpawnSparks(collision.GetContact(0).point);
         }
     }

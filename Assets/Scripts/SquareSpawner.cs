@@ -5,6 +5,7 @@ using UnityEngine;
 /// Spawns composite pinatas — random connected shapes of coloured squares that
 /// fall as one body. Shapes are generated via a center-biased growth algorithm.
 /// Oscillates horizontally above the screen. Each square has independent health.
+/// Variant selection progresses from 100% Basic to a mix of all five types.
 /// </summary>
 public class SquareSpawner : MonoBehaviour
 {
@@ -24,6 +25,7 @@ public class SquareSpawner : MonoBehaviour
 
     private float  _timer;
     private Sprite _squareSprite;
+    private int    _totalSpawned;
 
     public float SquareSize => squareSize;
     public void SetGridSize(int w, int h) { gridWidth = w; gridHeight = h; }
@@ -78,19 +80,28 @@ public class SquareSpawner : MonoBehaviour
     void SpawnPinata(float spawnX, List<(int col, int row)> shape,
         int minC, int maxC, int minR, int maxR)
     {
+        var variant = ChooseVariant();
+        var def = PinataVariantDefs.Get(variant);
+
         var parent = new GameObject("Pinata");
         parent.transform.position = new Vector3(spawnX, spawnY, 0f);
         parent.transform.rotation = Quaternion.Euler(0f, 0f, Random.Range(-maxSpawnAngle, maxSpawnAngle));
 
         var rb = parent.AddComponent<Rigidbody2D>();
         rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
-        rb.mass                   = 2f;
-        rb.gravityScale           = gravityScale;
+        rb.mass                   = 2f * def.MassMult;
+        rb.gravityScale           = gravityScale * def.GravityMult;
         rb.linearVelocity         = new Vector2(Random.Range(-maxHorizSpeed, maxHorizSpeed), 0f);
         rb.angularVelocity        = Random.Range(-maxAngularSpeed, maxAngularSpeed);
 
         var pinata = parent.AddComponent<Pinata>();
-        var color  = Random.ColorHSV(0f, 1f, 0.35f, 0.55f, 0.95f, 1f);
+
+        // Color: variant-driven or random for Basic
+        Color color;
+        if (def.Hue < 0f)
+            color = Random.ColorHSV(0f, 1f, 0.35f, 0.55f, 0.95f, 1f);
+        else
+            color = Color.HSVToRGB(def.Hue, def.Saturation, def.Value);
 
         // Center the shape on the parent transform
         float offsetX = (minC + maxC) * 0.5f;
@@ -114,9 +125,55 @@ public class SquareSpawner : MonoBehaviour
             sq.AddComponent<BoxCollider2D>();
 
             var ps = sq.AddComponent<PinataSquare>();
-            ps.Init(pinata, squareHealth, col, row);
+            ps.Init(pinata, squareHealth, col, row, variant);
             pinata.Register(ps);
+
+            // Shield visual for Shielded variant
+            if (def.ShieldFraction > 0f)
+            {
+                var shieldGo = new GameObject("Shield");
+                shieldGo.transform.SetParent(sq.transform, false);
+                shieldGo.transform.localPosition = Vector3.zero;
+                shieldGo.transform.localScale = Vector3.one * 1.15f;
+
+                var shieldSr = shieldGo.AddComponent<SpriteRenderer>();
+                shieldSr.sprite = _squareSprite;
+                shieldSr.color = new Color(0.3f, 0.5f, 1f, 0.3f);
+                shieldSr.sortingOrder = 2;
+
+                ps.SetShieldVisual(shieldSr);
+            }
         }
+
+        _totalSpawned++;
+    }
+
+    // ── Variant selection ──
+
+    PinataVariantType ChooseVariant()
+    {
+        // Progression factor: 0 at start, ~1 at 300 spawns
+        float t = Mathf.Clamp01(_totalSpawned / 300f);
+
+        // Weights lerp from early (100% basic) to late (diverse mix)
+        float basic   = Mathf.Lerp(1.0f, 0.30f, t);
+        float armored = Mathf.Lerp(0.0f, 0.20f, t);
+        float shield  = Mathf.Lerp(0.0f, 0.15f, Mathf.Clamp01((t - 0.3f) / 0.7f)); // unlocks later
+        float swift   = Mathf.Lerp(0.0f, 0.20f, t);
+        float heavy   = Mathf.Lerp(0.0f, 0.15f, t);
+
+        float total = basic + armored + shield + swift + heavy;
+        float roll = Random.Range(0f, total);
+
+        float cum = basic;
+        if (roll < cum) return PinataVariantType.Basic;
+        cum += armored;
+        if (roll < cum) return PinataVariantType.Armored;
+        cum += shield;
+        if (roll < cum) return PinataVariantType.Shielded;
+        cum += swift;
+        if (roll < cum) return PinataVariantType.Swift;
+        return PinataVariantType.Heavy;
     }
 
     /// <summary>

@@ -456,4 +456,5 @@ public class GlobalUpgradesUI : MonoBehaviour
         float dmg = gm.CalculateDeathLineDamage(gm.DeathLineDamageLevel);
         return "Damage: " + dmg.ToString("F1") + "  ($1/kill)";
     }
+
 }

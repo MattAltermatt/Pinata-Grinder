@@ -25,6 +25,7 @@ public class GameField : MonoBehaviour
     private GameObject _wallBottom, _wallBottomVis;
     private GameObject _redLine;
 
+
     void Awake()
     {
         if (Instance != null && Instance != this) { Destroy(this); return; }

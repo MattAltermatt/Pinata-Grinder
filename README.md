@@ -45,6 +45,20 @@ Each stopper holds one weapon. Buy more stoppers (top-left button) to field more
 
 Global upgrades make the game harder but also more rewarding — tougher pinatas are worth more money.
 
+### Pinata Variants
+
+Not all pinatas are created equal. As you progress, you'll encounter different types:
+
+| Variant | Appearance | Behavior |
+|---|---|---|
+| **Basic** | Random pastel colors | Standard pinata, no special properties |
+| **Armored** | Grey, metallic | Resistant to saw blade damage (physical) |
+| **Shielded** | Blue glow | Energy shield absorbs laser damage until broken |
+| **Swift** | Yellow-green, streaky | Falls faster, harder to hit with missiles |
+| **Heavy** | Dark purple | High mass, hard to push, but slow-moving |
+
+Tougher variants are worth more money when destroyed. Diversifying your weapon types helps deal with all variants effectively.
+
 ### Economy
 
 - **Weapon kills** earn `max(1, round(maxHealth x 2))` dollars per dead square that reaches the death line (with confetti!)

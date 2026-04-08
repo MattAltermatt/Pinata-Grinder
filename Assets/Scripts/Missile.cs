@@ -169,7 +169,7 @@ public class Missile : MonoBehaviour
         {
             if (squares[i].IsDead) continue;
             if (((Vector2)squares[i].transform.position - pos).sqrMagnitude <= r2)
-                squares[i].TakeDamage(_damage);
+                squares[i].TakeDamage(_damage, DamageType.Explosive);
         }
 
         SpawnExplosion(pos);

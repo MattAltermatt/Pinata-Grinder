@@ -117,6 +117,7 @@ public class StopperFactory
         group.Upgrades.SetInitialInvestment(Economy.Instance.SawCost);
 
         stopper.Weapon = group;
+
         return group;
     }
 
@@ -131,6 +132,7 @@ public class StopperFactory
         group.Upgrades.SetInitialInvestment(Economy.Instance.LaserCost);
 
         stopper.Weapon = group;
+
         return group;
     }
 
@@ -145,6 +147,7 @@ public class StopperFactory
         group.Upgrades.SetInitialInvestment(Economy.Instance.MissileCost);
 
         stopper.Weapon = group;
+
         return group;
     }
 

@@ -62,6 +62,34 @@ saw, laser, and missile creation/destruction. It is initialized by `GameField.Aw
 by the shop UI to spawn new stoppers/weapons at runtime. `FindClearSpawnPos()` ensures
 new stoppers don't overlap existing ones.
 
+## Damage Type System
+
+Weapons deal typed damage via `TakeDamage(float amount, DamageType type)`. Three damage
+types exist: `Physical` (saw blades), `Energy` (lasers), `Explosive` (missiles). The
+death line deals `Physical` damage. Pinata variants apply resistance multipliers per type.
+
+## Pinata Variant System
+
+Pinatas spawn as one of five variants, defined in `PinataVariant.cs`:
+
+| Variant | Physical | Energy | Explosive | Gravity | Mass | Reward | Visual |
+|---------|----------|--------|-----------|---------|------|--------|--------|
+| Basic | 1.0× | 1.0× | 1.0× | 1.0× | 1.0× | 1.0× | Random pastel |
+| Armored | 0.3× | 1.0× | 1.0× | 1.0× | 1.5× | 1.5× | Grey metallic |
+| Shielded | 1.0× | 1.0×* | 1.0× | 1.0× | 1.0× | 1.3× | Blue glow |
+| Swift | 1.0× | 1.0× | 1.0× | 2.0× | 0.5× | 1.4× | Yellow-green |
+| Heavy | 1.0× | 1.0× | 1.0× | 0.6× | 3.0× | 1.6× | Dark purple |
+
+*Shielded variant has extra shield HP (50% of maxHealth) that absorbs Energy damage first.
+
+Variant selection uses weighted random based on `_totalSpawned` counter in `SquareSpawner`:
+- Early game: 100% Basic
+- Mid game (~100 spawns): 60% Basic, 15% Armored, 15% Swift, 10% Heavy
+- Late game (~300+ spawns): 30% Basic, 20% Armored, 15% Shielded, 20% Swift, 15% Heavy
+
+`PinataSquare` stores `_variant`, `_rewardMult`, `_shieldHP`, `_maxShieldHP`. Reward
+formula becomes `max(1, round(maxHealth × 2 × rewardMult))`.
+
 ## Key Scripts (`Assets/Scripts/`)
 
 | Script | Purpose |
@@ -92,6 +120,7 @@ new stoppers don't overlap existing ones.
 | `StopperFactory.cs` | Plain C# class (not MonoBehaviour); `SpawnStopper`, `AttachSaw` (creates SawGroup), `AttachLaser` (creates LaserGroup), `DetachWeapon`, `DestroyStopper`, `FindClearSpawnPos` |
 | `ConfettiBurst.cs` | Spawns a one-shot `ParticleSystem` burst (15 particles), tinted to match the destroyed square |
 | `DeathLine.cs` | Marker `MonoBehaviour` on the red death-line trigger collider |
+| `PinataVariant.cs` | `DamageType` enum (Physical, Energy, Explosive), `PinataVariantType` enum, `PinataVariantDef` struct, `PinataVariantDefs` static data class with variant definitions |
 
 ## Scene Layout (runtime)
 
@@ -206,6 +235,12 @@ new stoppers don't overlap existing ones.
 Individual `SawBlade` and `Laser` are plain MonoBehaviours (not `Weapon` subclasses).
 Each group owns a `WeaponUpgradeData` that tracks per-instance upgrade levels and total
 money invested (base cost + all upgrade costs). Sell price = `TotalInvestment`.
+
+**Instance-scaled upgrade costs**: Non-instance upgrade slots (damage, speed, range, etc.)
+cost more when a stopper has more deployed instances. Formula:
+`baseCost × 1.6^level × (1 + (instanceCount - 1) × 0.5)`. The instance slot itself
+(Extra Blades/Lasers/Launchers) is unaffected to avoid circular scaling. Example: with
+5 lasers, a damage upgrade costs 3× its base-level price.
 
 ### SawBlade (via SawGroup)
 
