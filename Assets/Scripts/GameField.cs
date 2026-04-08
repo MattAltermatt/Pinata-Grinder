@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -166,9 +168,24 @@ public class GameField : MonoBehaviour
         return go;
     }
 
-    // ── Procedural sprite generators ──
+    // ── Procedural sprite generators (cached) ──
+
+    private static readonly Dictionary<string, Sprite> _spriteCache = new();
+
+    static Sprite GetCached(string key, System.Func<Sprite> factory)
+    {
+        if (_spriteCache.TryGetValue(key, out var cached) && cached != null)
+            return cached;
+        var sprite = factory();
+        _spriteCache[key] = sprite;
+        return sprite;
+    }
 
     public static Sprite CircleSprite(int res = 128)
+    {
+        return GetCached($"Circle{res}", () => CircleSpriteGen(res));
+    }
+    static Sprite CircleSpriteGen(int res)
     {
         var tex    = new Texture2D(res, res);
         tex.filterMode = FilterMode.Bilinear;
@@ -187,6 +204,10 @@ public class GameField : MonoBehaviour
     }
 
     public static Sprite SawSprite(int res = 128, int teeth = 10)
+    {
+        return GetCached($"Saw{res}_{teeth}", () => SawSpriteGen(res, teeth));
+    }
+    static Sprite SawSpriteGen(int res, int teeth)
     {
         var tex = new Texture2D(res, res);
         tex.filterMode = FilterMode.Bilinear;
@@ -227,6 +248,10 @@ public class GameField : MonoBehaviour
     }
 
     public static Sprite DishSprite(int res = 128)
+    {
+        return GetCached($"Dish{res}", () => DishSpriteGen(res));
+    }
+    static Sprite DishSpriteGen(int res)
     {
         var tex = new Texture2D(res, res);
         tex.filterMode = FilterMode.Bilinear;
@@ -293,6 +318,10 @@ public class GameField : MonoBehaviour
 
     public static Sprite WhiteSprite()
     {
+        return GetCached("White", WhiteSpriteGen);
+    }
+    static Sprite WhiteSpriteGen()
+    {
         var tex    = new Texture2D(4, 4);
         var pixels = new Color[16];
         for (int i = 0; i < 16; i++) pixels[i] = Color.white;
@@ -307,6 +336,10 @@ public class GameField : MonoBehaviour
     /// Two horizontal arrows pointing outward (← →) representing wall expansion.
     /// </summary>
     public static Sprite WallExpandSprite(int res = 64)
+    {
+        return GetCached($"WallExpand{res}", () => WallExpandSpriteGen(res));
+    }
+    static Sprite WallExpandSpriteGen(int res)
     {
         var tex = new Texture2D(res, res);
         tex.filterMode = FilterMode.Bilinear;
@@ -349,6 +382,10 @@ public class GameField : MonoBehaviour
     /// </summary>
     public static Sprite GridSprite(int res = 64)
     {
+        return GetCached($"Grid{res}", () => GridSpriteGen(res));
+    }
+    static Sprite GridSpriteGen(int res)
+    {
         var tex = new Texture2D(res, res);
         tex.filterMode = FilterMode.Bilinear;
         var pixels = new Color[res * res];
@@ -383,6 +420,10 @@ public class GameField : MonoBehaviour
     /// Clock face with two hands representing spawn rate.
     /// </summary>
     public static Sprite ClockSprite(int res = 64)
+    {
+        return GetCached($"Clock{res}", () => ClockSpriteGen(res));
+    }
+    static Sprite ClockSpriteGen(int res)
     {
         var tex = new Texture2D(res, res);
         tex.filterMode = FilterMode.Bilinear;
@@ -434,6 +475,10 @@ public class GameField : MonoBehaviour
     /// </summary>
     public static Sprite HeartSprite(int res = 64)
     {
+        return GetCached($"Heart{res}", () => HeartSpriteGen(res));
+    }
+    static Sprite HeartSpriteGen(int res)
+    {
         var tex = new Texture2D(res, res);
         tex.filterMode = FilterMode.Bilinear;
         var pixels = new Color[res * res];
@@ -461,6 +506,10 @@ public class GameField : MonoBehaviour
     /// Downward bolt/lightning shape representing death line damage.
     /// </summary>
     public static Sprite BoltSprite(int res = 64)
+    {
+        return GetCached($"Bolt{res}", () => BoltSpriteGen(res));
+    }
+    static Sprite BoltSpriteGen(int res)
     {
         var tex = new Texture2D(res, res);
         tex.filterMode = FilterMode.Bilinear;
@@ -508,6 +557,10 @@ public class GameField : MonoBehaviour
     /// with darker muzzle opening on the right and a mounting base on the left.
     /// </summary>
     public static Sprite MissileLauncherSprite(int res = 128)
+    {
+        return GetCached($"MissileLauncher{res}", () => MissileLauncherSpriteGen(res));
+    }
+    static Sprite MissileLauncherSpriteGen(int res)
     {
         var tex = new Texture2D(res, res);
         tex.filterMode = FilterMode.Bilinear;
@@ -585,6 +638,10 @@ public class GameField : MonoBehaviour
     /// </summary>
     public static Sprite MissileSprite(int res = 64)
     {
+        return GetCached($"Missile{res}", () => MissileSpriteGen(res));
+    }
+    static Sprite MissileSpriteGen(int res)
+    {
         var tex = new Texture2D(res, res);
         tex.filterMode = FilterMode.Bilinear;
         var pixels = new Color[res * res];
@@ -643,6 +700,10 @@ public class GameField : MonoBehaviour
     /// </summary>
     public static Sprite CrosshairSprite(int res = 64)
     {
+        return GetCached($"Crosshair{res}", () => CrosshairSpriteGen(res));
+    }
+    static Sprite CrosshairSpriteGen(int res)
+    {
         var tex = new Texture2D(res, res);
         tex.filterMode = FilterMode.Bilinear;
         var pixels = new Color[res * res];
@@ -685,6 +746,10 @@ public class GameField : MonoBehaviour
     /// Horizontal sine wave representing oscillation speed.
     /// </summary>
     public static Sprite WaveSprite(int res = 64)
+    {
+        return GetCached($"Wave{res}", () => WaveSpriteGen(res));
+    }
+    static Sprite WaveSpriteGen(int res)
     {
         var tex = new Texture2D(res, res);
         tex.filterMode = FilterMode.Bilinear;

@@ -12,6 +12,9 @@ public class Pinata : MonoBehaviour
 {
     private static readonly (int dc, int dr)[] Offsets = { (1, 0), (-1, 0), (0, 1), (0, -1) };
 
+    private static readonly List<Pinata> _allPinatas = new();
+    public static IReadOnlyList<Pinata> All => _allPinatas;
+
     private Rigidbody2D _rb;
     private readonly List<PinataSquare> _squares = new();
     private readonly Dictionary<(int col, int row), PinataSquare> _grid = new();
@@ -39,6 +42,12 @@ public class Pinata : MonoBehaviour
     void Awake()
     {
         _rb = GetComponent<Rigidbody2D>();
+        _allPinatas.Add(this);
+    }
+
+    void OnDestroy()
+    {
+        _allPinatas.Remove(this);
     }
 
     public void Register(PinataSquare sq)

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -8,6 +9,9 @@ using UnityEngine;
 /// </summary>
 public class PinataSquare : MonoBehaviour
 {
+    private static readonly List<PinataSquare> _allSquares = new();
+    public static IReadOnlyList<PinataSquare> All => _allSquares;
+
     private SpriteRenderer _sr;
     private Pinata _pinata;
     private float _health;
@@ -23,6 +27,12 @@ public class PinataSquare : MonoBehaviour
     void Awake()
     {
         _sr = GetComponent<SpriteRenderer>();
+        _allSquares.Add(this);
+    }
+
+    void OnDestroy()
+    {
+        _allSquares.Remove(this);
     }
 
     public void Init(Pinata parent, float health, int col, int row)

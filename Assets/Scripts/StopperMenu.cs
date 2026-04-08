@@ -747,8 +747,8 @@ public class StopperMenu : MonoBehaviour
     {
         if (_currentStopper == null) return;
         if (_currentStopper.HasWeapon) return;
-        var allStoppers = Object.FindObjectsByType<Stopper>(FindObjectsInactive.Exclude);
-        if (allStoppers.Length <= 1) return;
+        var allStoppers = Stopper.All;
+        if (allStoppers.Count <= 1) return;
         if (!Economy.Instance.TrySellStopper()) return;
         StopperFactory.Instance.DestroyStopper(_currentStopper);
         Hide();
@@ -819,8 +819,8 @@ public class StopperMenu : MonoBehaviour
         _buyMissileBtn.interactable = canAffordMissile;
 
         int sellPrice = Economy.Instance.StopperSellPrice;
-        var allStoppers = Object.FindObjectsByType<Stopper>(FindObjectsInactive.Exclude);
-        bool canSell = allStoppers.Length > 1 && sellPrice > 0;
+        var allStoppers = Stopper.All;
+        bool canSell = allStoppers.Count > 1 && sellPrice > 0;
         _sellStopperCostLabel.text = canSell ? "Sell $" + sellPrice : "Sell";
         _sellStopperBg.color = canSell ? new Color(0.5f, 0.15f, 0.1f, 0.9f) : CantAffordBg;
         _sellStopperBtn.interactable = canSell;

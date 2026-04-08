@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -7,8 +8,16 @@ using UnityEngine;
 /// </summary>
 public class Stopper : MonoBehaviour
 {
+    private static readonly List<Stopper> _allStoppers = new();
+    public static IReadOnlyList<Stopper> All => _allStoppers;
+
     public Weapon Weapon { get; set; }
     public bool HasWeapon => Weapon != null;
+
+    void Awake()
+    {
+        _allStoppers.Add(this);
+    }
 
     void Start()
     {
@@ -19,6 +28,7 @@ public class Stopper : MonoBehaviour
 
     void OnDestroy()
     {
+        _allStoppers.Remove(this);
         var drag = GetComponent<Draggable>();
         if (drag != null)
             drag.OnClicked -= HandleClick;

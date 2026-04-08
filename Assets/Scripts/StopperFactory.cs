@@ -25,7 +25,7 @@ public class StopperFactory
     public void UpdateFieldWidth(float newFieldWidth)
     {
         _fieldWidth = newFieldWidth;
-        var stoppers = Object.FindObjectsByType<Stopper>();
+        var stoppers = Stopper.All;
         float halfW = newFieldWidth * 0.5f;
         foreach (var s in stoppers)
         {
@@ -41,7 +41,7 @@ public class StopperFactory
 
     public Vector2 FindClearSpawnPos(Vector2 preferred)
     {
-        var stoppers = Object.FindObjectsByType<Stopper>();
+        var stoppers = Stopper.All;
         float minSeparation = _stopperRadius * 4f;
 
         if (!TooCloseToAny(preferred, stoppers, minSeparation))
@@ -68,10 +68,10 @@ public class StopperFactory
         return preferred + Vector2.right * step;
     }
 
-    static bool TooCloseToAny(Vector2 pos, Stopper[] stoppers, float minDist)
+    static bool TooCloseToAny(Vector2 pos, System.Collections.Generic.IReadOnlyList<Stopper> stoppers, float minDist)
     {
         float minDist2 = minDist * minDist;
-        for (int i = 0; i < stoppers.Length; i++)
+        for (int i = 0; i < stoppers.Count; i++)
         {
             if (((Vector2)stoppers[i].transform.position - pos).sqrMagnitude < minDist2)
                 return true;

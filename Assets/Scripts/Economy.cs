@@ -40,7 +40,7 @@ public class Economy : MonoBehaviour
 
     public void Earn(int amount)
     {
-        _money += amount;
+        _money = Mathf.Max(0, _money + amount);
         OnMoneyChanged?.Invoke(_money);
     }
 

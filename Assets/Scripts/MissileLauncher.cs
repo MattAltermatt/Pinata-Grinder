@@ -80,12 +80,12 @@ public class MissileLauncher : MonoBehaviour
 
     void AcquireTarget()
     {
-        var pinatas = FindObjectsByType<Pinata>(FindObjectsInactive.Exclude);
+        var pinatas = Pinata.All;
         float bestScore = float.MaxValue;
         Pinata best = null;
         Vector2 aimDir = transform.right;
 
-        for (int i = 0; i < pinatas.Length; i++)
+        for (int i = 0; i < pinatas.Count; i++)
         {
             if (pinatas[i].AliveCount == 0) continue;
             Vector2 center = pinatas[i].CenterOfMass();

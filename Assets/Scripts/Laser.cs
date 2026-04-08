@@ -215,14 +215,14 @@ public class Laser : MonoBehaviour
 
     void AcquireTarget()
     {
-        var squares = FindObjectsByType<PinataSquare>();
+        var squares = PinataSquare.All;
         float bestScore = float.MaxValue;
         PinataSquare best = null;
 
         float maxRange2 = _maxRange * _maxRange;
         Vector2 aimDir = transform.right;
 
-        for (int i = 0; i < squares.Length; i++)
+        for (int i = 0; i < squares.Count; i++)
         {
             if (squares[i].IsDead) continue;
             Vector2 toTarget = (Vector2)squares[i].transform.position - (Vector2)transform.position;
