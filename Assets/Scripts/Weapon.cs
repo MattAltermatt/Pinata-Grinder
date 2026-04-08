@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public enum WeaponType { None, Saw, Laser }
+public enum WeaponType { None, Saw, Laser, Missile }
 
 /// <summary>
 /// Abstract base class for weapon groups that mount on stoppers.
@@ -17,4 +17,23 @@ public abstract class Weapon : MonoBehaviour
     public abstract int UpgradeSlotCount { get; }
     public abstract UpgradeSlotInfo GetSlotInfo(int slot);
     public abstract bool TryUpgrade(int slot);
+
+    public virtual bool HasDirectionToggle => false;
+    public virtual bool IsClockwise => false;
+    public virtual void ToggleDirection() { }
+
+    /// <summary>
+    /// In editor, upgrades are free and ignore max level caps.
+    /// </summary>
+    public static bool IsDebugMode
+    {
+        get
+        {
+#if UNITY_EDITOR
+            return true;
+#else
+            return false;
+#endif
+        }
+    }
 }

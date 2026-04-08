@@ -33,14 +33,19 @@ as one rigid body. When a square dies, it darkens, shrinks to 75% size, switches
 `DeadSquare` layer, and gets its own `Rigidbody2D`.
 
 **Weapons** mount on stoppers. The `Weapon` abstract base class defines `Init(Vector2, float)`,
-`WeaponType Type`, and `string DisplayName`. The `WeaponType` enum (`None, Saw, Laser`)
-identifies weapon types for the UI and economy. Two weapon types exist:
+`WeaponType Type`, and `string DisplayName`. The `WeaponType` enum (`None, Saw, Laser, Missile`)
+identifies weapon types for the UI and economy. Three weapon types exist:
 - **SawBlade**: orbits its stopper at the edge using `Rigidbody2D.MovePosition()` in
   `FixedUpdate`; damages on collision; emits sparks on hit
 - **Laser**: satellite-dish shaped; locks onto the closest alive `PinataSquare` within
   range, fires a continuous red `LineRenderer` beam dealing 1 DPS; enters 3s cooldown
   (upgradeable to 0.1s) after a kill; sparkles at dish and hit point while firing; visually replaces the
   stopper sprite (hides it on attach, restores on sell)
+- **Missile**: launcher tube/pod; acquires targets with lead prediction (solves quadratic
+  intercept equation), fires slow AOE projectiles; missiles travel via transform (no
+  Rigidbody2D/collider), detonate on proximity to alive squares; explosion damages all
+  squares within blast radius; smoke/fire trail particles; visually replaces the stopper
+  sprite (hides it on attach, restores on sell)
 
 Weapons are purchased per-stopper via the `StopperMenu` popup (click a stopper to open).
 Clicking a stopper with a weapon shows the weapon name and a sell button.
@@ -52,7 +57,7 @@ stopper's `Transform` and follow automatically. The player starts with one stopp
 (threshold 0.35 world units), firing `OnClicked` for menu interaction only on tap.
 
 **StopperFactory** is a plain C# class (not MonoBehaviour) that encapsulates stopper,
-saw, and laser creation/destruction. It is initialized by `GameField.Awake()` and used
+saw, laser, and missile creation/destruction. It is initialized by `GameField.Awake()` and used
 by the shop UI to spawn new stoppers/weapons at runtime. `FindClearSpawnPos()` ensures
 new stoppers don't overlap existing ones.
 
@@ -61,18 +66,21 @@ new stoppers don't overlap existing ones.
 | Script | Purpose |
 |---|---|
 | `GameField.cs` | Configures camera, creates walls (with visuals), death line, initial stopper; initializes Economy, StopperFactory, GlobalUpgrades, and UI; provides procedural sprite generators; walls rebuildable via `RebuildWalls()` |
-| `SquareSpawner.cs` | Spawns composite pinatas on a fixed interval; oscillates spawn position horizontally; grid size, interval, oscillation, and field width settable at runtime via public setters |
+| `SquareSpawner.cs` | Spawns composite pinatas as random connected shapes (center-biased growth algorithm); oscillates spawn position horizontally; grid size, interval, oscillation, and field width settable at runtime via public setters |
 | `GlobalUpgrades.cs` | Singleton managing 4 global upgrade levels (wall size, pinata size, spawner rate, oscillation rate); applies effects to GameField, SquareSpawner, StopperFactory |
 | `GlobalUpgradesUI.cs` | "Upgrades" button below Buy Stopper; full-screen overlay with 4 upgrade rows, cost labels, descriptions, and "SOLD OUT" state for maxed upgrades |
 | `Pinata.cs` | Parent controller for composite pinatas; manages child square list and detachment |
 | `PinataSquare.cs` | Individual square within a pinata; tracks health, takes damage, darkens/shrinks on death; exposes `IsDead` property; dead squares earn $1 and spawn confetti at death line |
-| `Weapon.cs` | Abstract base class for weapon groups; defines `Init`, `Type`, `DisplayName`, `Upgrades`, `UpgradeSlotCount`, `GetSlotInfo`, `TryUpgrade` |
+| `Weapon.cs` | Abstract base class for weapon groups; defines `Init`, `Type`, `DisplayName`, `Upgrades`, `UpgradeSlotCount`, `GetSlotInfo`, `TryUpgrade`; `WeaponType` enum: None, Saw, Laser, Missile |
 | `WeaponUpgradeData.cs` | Plain C# class tracking per-weapon upgrade levels and total investment for sell price |
 | `UpgradeSlotInfo.cs` | Struct with upgrade slot UI info (name, description, icon, cost, level, maxLevel) |
 | `SawGroup.cs` | Weapon group managing multiple `SawBlade` instances; 5 upgrade slots (blades, speed, size, torque, damage) |
 | `LaserGroup.cs` | Weapon group managing multiple `Laser` instances; 5 upgrade slots (aim speed, range, damage, extra lasers, cooldown) |
 | `SawBlade.cs` | Single saw blade instance (MonoBehaviour, not Weapon); orbits stopper, damages on contact; configurable via setters |
 | `Laser.cs` | Single laser turret instance (MonoBehaviour, not Weapon); gradual rotation, angular targeting preference; configurable via setters |
+| `MissileGroup.cs` | Weapon group managing multiple `MissileLauncher` instances; 6 upgrade slots (fire rate, damage, blast radius, speed, extra launchers, homing) |
+| `MissileLauncher.cs` | Single launcher turret instance (MonoBehaviour, not Weapon); lead targeting via quadratic intercept; fires `Missile` projectiles |
+| `Missile.cs` | Fire-and-forget AOE projectile; homing, proximity detonation, smoke trail, explosion VFX; self-destructs after 10s |
 | `Stopper.cs` | Stopper component; tracks `Weapon` reference (polymorphic), opens `StopperMenu` on click |
 | `Draggable.cs` | Click-and-drag via Input System; clamps to configurable bounds; fires `OnClicked` event for taps (tracks `_hasDragged` flag, threshold 0.35 units) |
 | `Economy.cs` | Singleton tracking money ($10 start), independent purchase counts per weapon type, exponential pricing (`base × 1.6^n`), sell refunds = TotalInvestment; fires `OnMoneyChanged` event |
@@ -103,6 +111,8 @@ RedLine               — SpriteRenderer (red) + BoxCollider2D (trigger) + Death
 Stopper (×1 start)    — CircleCollider2D + Kinematic Rigidbody2D + Draggable + Stopper, dark grey, centered at (0, 1)
 SawBlade (×0 start)   — purchased per-stopper; CircleCollider2D + Dynamic Rigidbody2D, silver saw-tooth sprite (Weapon layer, sortingOrder 4)
 Laser (×0 start)      — purchased per-stopper; satellite dish sprite, LineRenderer beam, dish/hit sparkle ParticleSystems (Weapon layer, sortingOrder 4)
+MissileLauncher (×0)  — purchased per-stopper; tube/pod sprite (Weapon layer, sortingOrder 4); fires Missile projectiles
+Missile(s)            — fire-and-forget projectiles (Weapon layer, sortingOrder 3); smoke trail ParticleSystem; explode on proximity
 Pinata(s)             — spawned periodically, parent with Rigidbody2D + Pinata component
   Square (×25)        — SpriteRenderer + BoxCollider2D + PinataSquare (compound collider children)
 ConfettiBurst(s)      — ParticleSystem, self-destructs after 3 s
@@ -157,14 +167,19 @@ and `Stopper` component (tracks `Weapon` reference, opens shop menu on click).
 ## Weapon System
 
 Weapons mount on stoppers. The `Weapon` abstract base class defines `Init(Vector2, float)`,
-`WeaponType Type`, and `string DisplayName`. The `WeaponType` enum (`None, Saw, Laser`)
-identifies weapon types for the UI and economy. Two weapon types exist:
+`WeaponType Type`, and `string DisplayName`. The `WeaponType` enum (`None, Saw, Laser, Missile`)
+identifies weapon types for the UI and economy. Three weapon types exist:
 - **SawBlade**: orbits its stopper at the edge using `Rigidbody2D.MovePosition()` in
   `FixedUpdate`; damages on collision; emits sparks on hit
 - **Laser**: satellite-dish shaped; locks onto the closest alive `PinataSquare` within
   range, fires a continuous red `LineRenderer` beam dealing 1 DPS; enters 3s cooldown
   (upgradeable to 0.1s) after a kill; sparkles at dish and hit point while firing; visually replaces the
   stopper sprite (hides it on attach, restores on sell)
+- **Missile**: launcher tube/pod; acquires targets with lead prediction (solves quadratic
+  intercept equation), fires slow AOE projectiles; missiles travel via transform (no
+  Rigidbody2D/collider), detonate on proximity to alive squares; explosion damages all
+  squares within blast radius; smoke/fire trail particles; visually replaces the stopper
+  sprite (hides it on attach, restores on sell)
 
 Weapons are purchased per-stopper via the `StopperMenu` popup (click a stopper to open).
 Clicking a stopper with a weapon shows the weapon name and a sell button.
@@ -176,7 +191,7 @@ stopper's `Transform` and follow automatically. The player starts with one stopp
 (threshold 0.35 world units), firing `OnClicked` for menu interaction only on tap.
 
 **StopperFactory** is a plain C# class (not MonoBehaviour) that encapsulates stopper,
-saw, and laser creation/destruction. It is initialized by `GameField.Awake()` and used
+saw, laser, and missile creation/destruction. It is initialized by `GameField.Awake()` and used
 by the shop UI to spawn new stoppers/weapons at runtime. `FindClearSpawnPos()` ensures
 new stoppers don't overlap existing ones.
 
@@ -195,6 +210,9 @@ money invested (base cost + all upgrade costs). Sell price = `TotalInvestment`.
   Damage ($10, unlimited, 1+0.5×level)
 - Adding blades: `Physics2D.IgnoreCollision` with stopper + all existing blades;
   angles redistributed equidistantly via `SetAngle(i * 360/count)`
+- **Direction toggle**: free button in upgrade overlay; flips `_directionMultiplier`
+  (1 or -1) which multiplies orbit speed, reversing CW↔CCW. Virtual methods on
+  `Weapon` base: `HasDirectionToggle`, `IsClockwise`, `ToggleDirection()`
 
 ### Laser (via LaserGroup)
 
@@ -208,6 +226,25 @@ money invested (base cost + all upgrade costs). Sell price = `TotalInvestment`.
   Cooldown ($8, max 20, 3s→0.1s)
 - Each laser targets independently with its own beam and particles
 
+### Missile (via MissileGroup)
+
+- Starts with 1 launcher at reduced stats (fire rate 5s, speed 1.5, damage 5, blast 0.4, no homing)
+- **Lead targeting**: `MissileLauncher.ComputeLeadDirection()` solves quadratic intercept
+  equation using target's `Rigidbody2D.linearVelocity` to predict where the pinata will be
+- **Homing**: upgradeable; missiles curve toward target via `Vector2.Lerp(_direction, toTarget, strength * dt)`
+- **AOE detonation**: contact trigger (AABB overlap with any alive square) or wall
+  boundary hit; on detonation, damages all alive `PinataSquare`s within blast radius
+  via `FindObjectsByType` + distance check
+- **Projectile**: `Missile.cs` — fire-and-forget, no Rigidbody2D/collider, moves via
+  `transform.position +=`, self-destructs after 10s or 20 units offscreen
+- **VFX**: smoke/fire trail (ParticleSystem, detached on detonation to fade),
+  orange/red explosion burst (25 particles, 2s self-destruct)
+- **6 upgrade slots**: Fire Rate ($8, max 20, 5s→0.5s), Damage ($10, unlimited,
+  5+2.5×level), Blast Radius ($8, max 20, 0.4→1.5), Missile Speed ($5, max 20,
+  1.5→6 u/s), Extra Launchers ($25, max 19→20), Homing ($12, max 10, 0→5 rad/s)
+- Each launcher targets and fires independently
+- **Economy**: $60 base cost (premium tier), exponential pricing ($60→$96→$154...)
+
 ### Radial Upgrade Menu
 
 When clicking a stopper with a weapon, StopperMenu displays a radial dial:
@@ -215,7 +252,8 @@ When clicking a stopper with a weapon, StopperMenu displays a radial dial:
 - N upgrade buttons arranged in a ring (radius 130px, each 85×85px)
 - Each button shows: icon, name, level indicator, cost
 - Colors: affordable=dark blue, can't afford=red, maxed=gold
-- In editor: all buttons always interactable (free debug upgrades)
+- In editor: all upgrade buttons always interactable, free, and ignore max level caps
+  (`Weapon.IsDebugMode` static property, `#if UNITY_EDITOR`)
 
 **Important**: Private fields on runtime-created `MonoBehaviour`s are lost during domain
 reload. Use `[SerializeField, HideInInspector]` for fields that must survive recompilation
@@ -223,10 +261,13 @@ in play mode, or use `GetComponent<>()` directly in callbacks instead of caching
 
 ## Pinata System
 
-Pinatas are composite 5×5 grids of squares that fall as one rigid body.
+Pinatas are composite random-shaped groups of squares that fall as one rigid body.
+Shape is generated via a center-biased growth algorithm (`GenerateShape` / `WeightedPick`
+in SquareSpawner): starts at (0,0), expands outward preferring cells closer to center,
+guaranteed connected. Total square count = `gridWidth × gridHeight` from the upgrade level.
 
 - **Spawning**: `SquareSpawner` oscillates horizontally above the screen; creates a parent
-  `Pinata` GO with `Rigidbody2D`, then 25 child squares
+  `Pinata` GO with `Rigidbody2D`, then child squares in the generated shape
 - **Spawn bounds**: Oscillation amplitude clamped to keep pinatas within field width
 - **Square sprite**: Procedural 32×32 white texture with 1-pixel darker border (grey 0.6)
   for visible outlines between adjacent squares; pastel colors (HSV: S 0.35–0.55, V 0.95–1.0)
@@ -346,9 +387,10 @@ subsequent gameplay.
 - **Pricing formula**: `baseCost × 1.6^purchaseCount` (rounded to int)
 - **Saw base cost**: $8 → $13 → $20 → $33 → $52 ... (independent counter)
 - **Laser base cost**: $40 → $64 → $102 → $164 ... (independent counter)
+- **Missile base cost**: $60 → $96 → $154 → $246 ... (independent counter)
 - **Stopper base cost**: $20 → $32 → $51 → $82 → $131 ...
 - **Events**: `OnMoneyChanged(int)` fires on earn/spend/sell; UI subscribes to update labels
-- **Buy methods**: `TryBuySaw()` / `TryBuyLaser()` / `TryBuyStopper()` return bool, deduct money, increment count
+- **Buy methods**: `TryBuySaw()` / `TryBuyLaser()` / `TryBuyMissile()` / `TryBuyStopper()` return bool, deduct money, increment count
 - **Sell methods**: `SellWeapon(Weapon)` refunds `weapon.Upgrades.TotalInvestment` (base
   purchase cost + all upgrade costs) and decrements the per-type purchase counter;
   `TrySellStopper()` refunds previous stopper cost and decrements `_stoppersPurchased`

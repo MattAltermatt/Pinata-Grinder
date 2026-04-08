@@ -15,6 +15,26 @@ public class Pinata : MonoBehaviour
     private Rigidbody2D _rb;
     private readonly List<PinataSquare> _squares = new();
     private readonly Dictionary<(int col, int row), PinataSquare> _grid = new();
+    private bool _splitPending;
+
+    public int AliveCount => _squares.Count;
+
+    /// <summary>
+    /// World-space center of all remaining alive squares.
+    /// </summary>
+    public Vector2 CenterOfMass()
+    {
+        if (_squares.Count == 0) return transform.position;
+        Vector2 sum = Vector2.zero;
+        int count = 0;
+        foreach (var s in _squares)
+        {
+            if (s == null) continue;
+            sum += (Vector2)s.transform.position;
+            count++;
+        }
+        return count > 0 ? sum / count : (Vector2)transform.position;
+    }
 
     void Awake()
     {
@@ -51,6 +71,30 @@ public class Pinata : MonoBehaviour
             return;
         }
 
+        // Defer the split check so that AOE kills in the same frame
+        // are all processed before we run the connectivity flood-fill.
+        _splitPending = true;
+    }
+
+    void LateUpdate()
+    {
+        if (!_splitPending) return;
+        _splitPending = false;
+
+        // Purge any squares destroyed between Update and LateUpdate
+        _squares.RemoveAll(s => s == null);
+
+        if (_squares.Count == 0)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
+        // Rebuild grid from current squares (some may have been purged)
+        _grid.Clear();
+        foreach (var s in _squares)
+            _grid[(s.GridCol, s.GridRow)] = s;
+
         // Check if remaining squares are still connected
         var groups = FindConnectedGroups();
         if (groups.Count <= 1) return;
@@ -58,7 +102,6 @@ public class Pinata : MonoBehaviour
         // Keep the largest group on this Pinata; split the rest
         groups.Sort((a, b) => b.Count.CompareTo(a.Count));
 
-        var parentVel = _rb.linearVelocity;
         var parentAngVel = _rb.angularVelocity;
         var parentGravScale = _rb.gravityScale;
 

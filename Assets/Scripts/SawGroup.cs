@@ -34,11 +34,21 @@ public class SawGroup : Weapon
     private WeaponUpgradeData _upgrades;
     private Transform _stopper;
     private float _stopperRadius;
+    private int _directionMultiplier = 1;
 
     public override WeaponType Type => WeaponType.Saw;
     public override string DisplayName => "Saw Blade";
     public override WeaponUpgradeData Upgrades => _upgrades;
     public override int UpgradeSlotCount => TotalSlots;
+
+    public override bool HasDirectionToggle => true;
+    public override bool IsClockwise => _directionMultiplier < 0;
+
+    public override void ToggleDirection()
+    {
+        _directionMultiplier = -_directionMultiplier;
+        ApplySpeed();
+    }
 
     public override void Init(Vector2 stopperCenter, float stopperRadius)
     {
@@ -59,10 +69,16 @@ public class SawGroup : Weapon
     public override bool TryUpgrade(int slot)
     {
         int maxLvl = MaxLevels[slot];
-        if (maxLvl > 0 && _upgrades.GetLevel(slot) >= maxLvl) return false;
-
         int cost = _upgrades.UpgradeCost(slot, BaseCosts[slot]);
 
+        if (IsDebugMode)
+        {
+            _upgrades.BuyUpgrade(slot, 0);
+            ApplyUpgrade(slot);
+            return true;
+        }
+
+        if (maxLvl > 0 && _upgrades.GetLevel(slot) >= maxLvl) return false;
         if (Economy.Instance == null || Economy.Instance.Money < cost) return false;
         Economy.Instance.Earn(-cost);
 
@@ -113,7 +129,7 @@ public class SawGroup : Weapon
 
     void ApplySpeed()
     {
-        float spd = CurrentSpeed();
+        float spd = CurrentSpeed() * _directionMultiplier;
         foreach (var b in _blades) b.SetOrbitSpeed(spd);
     }
 
@@ -147,7 +163,7 @@ public class SawGroup : Weapon
             CurrentRadius(),
             CurrentMass()
         );
-        blade.SetOrbitSpeed(CurrentSpeed());
+        blade.SetOrbitSpeed(CurrentSpeed() * _directionMultiplier);
         blade.SetDamage(CurrentDamage());
 
         if (_stopper != null)

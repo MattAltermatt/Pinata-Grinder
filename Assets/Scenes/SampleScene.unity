@@ -395,7 +395,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GameField
   fieldWidth: 6
-  bottomY: -4.5
   cameraHalfHeight: 5
   stopperRadius: 0.25
 --- !u!4 &2120998247

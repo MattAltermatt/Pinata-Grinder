@@ -134,6 +134,20 @@ public class StopperFactory
         return group;
     }
 
+    public MissileGroup AttachMissile(Stopper stopper)
+    {
+        var stopperPos = (Vector2)stopper.transform.position;
+        var groupGo = new GameObject("MissileGroup");
+        var group = groupGo.AddComponent<MissileGroup>();
+        group.Init(stopperPos, _stopperRadius);
+        group.SetStopper(stopper.transform);
+
+        group.Upgrades.SetInitialInvestment(Economy.Instance.MissileCost);
+
+        stopper.Weapon = group;
+        return group;
+    }
+
     public void DestroyStopper(Stopper stopper)
     {
         if (stopper.HasWeapon)

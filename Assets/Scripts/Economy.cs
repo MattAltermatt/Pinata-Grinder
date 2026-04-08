@@ -13,12 +13,14 @@ public class Economy : MonoBehaviour
     [SerializeField] private int sawBaseCost = 8;
     [SerializeField] private int stopperBaseCost = 20;
     [SerializeField] private int laserBaseCost = 40;
+    [SerializeField] private int missileBaseCost = 60;
     [SerializeField] private float costMultiplier = 1.6f;
 
     private int _money;
     private int _sawsPurchased;
     private int _stoppersPurchased;
     private int _lasersPurchased;
+    private int _missilesPurchased;
 
     public event Action<int> OnMoneyChanged;
 
@@ -26,6 +28,7 @@ public class Economy : MonoBehaviour
     public int SawCost => Cost(sawBaseCost, _sawsPurchased);
     public int StopperCost => Cost(stopperBaseCost, _stoppersPurchased);
     public int LaserCost => Cost(laserBaseCost, _lasersPurchased);
+    public int MissileCost => Cost(missileBaseCost, _missilesPurchased);
     public int StopperSellPrice => _stoppersPurchased > 0 ? Cost(stopperBaseCost, _stoppersPurchased - 1) : 0;
 
     void Awake()
@@ -44,6 +47,7 @@ public class Economy : MonoBehaviour
     public bool CanAffordSaw() => _money >= SawCost;
     public bool CanAffordStopper() => _money >= StopperCost;
     public bool CanAffordLaser() => _money >= LaserCost;
+    public bool CanAffordMissile() => _money >= MissileCost;
 
     public bool TryBuySaw()
     {
@@ -75,6 +79,16 @@ public class Economy : MonoBehaviour
         return true;
     }
 
+    public bool TryBuyMissile()
+    {
+        int cost = MissileCost;
+        if (_money < cost) return false;
+        _money -= cost;
+        _missilesPurchased++;
+        OnMoneyChanged?.Invoke(_money);
+        return true;
+    }
+
     /// <summary>
     /// Sell price is the total investment (base purchase + all upgrade costs).
     /// </summary>
@@ -98,6 +112,10 @@ public class Economy : MonoBehaviour
             case WeaponType.Laser:
                 if (_lasersPurchased <= 0) return;
                 _lasersPurchased--;
+                break;
+            case WeaponType.Missile:
+                if (_missilesPurchased <= 0) return;
+                _missilesPurchased--;
                 break;
             default: return;
         }

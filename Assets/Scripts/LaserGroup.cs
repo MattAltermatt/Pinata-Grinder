@@ -58,10 +58,16 @@ public class LaserGroup : Weapon
     public override bool TryUpgrade(int slot)
     {
         int maxLvl = MaxLevels[slot];
-        if (maxLvl > 0 && _upgrades.GetLevel(slot) >= maxLvl) return false;
-
         int cost = _upgrades.UpgradeCost(slot, BaseCosts[slot]);
 
+        if (IsDebugMode)
+        {
+            _upgrades.BuyUpgrade(slot, 0);
+            ApplyUpgrade(slot);
+            return true;
+        }
+
+        if (maxLvl > 0 && _upgrades.GetLevel(slot) >= maxLvl) return false;
         if (Economy.Instance == null || Economy.Instance.Money < cost) return false;
         Economy.Instance.Earn(-cost);
 

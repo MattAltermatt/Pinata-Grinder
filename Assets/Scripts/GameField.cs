@@ -491,6 +491,184 @@ public class GameField : MonoBehaviour
     }
 
     /// <summary>
+    /// Missile launcher tube/pod shape facing right. Dark gray cylindrical body
+    /// with darker muzzle opening on the right and a mounting base on the left.
+    /// </summary>
+    public static Sprite MissileLauncherSprite(int res = 128)
+    {
+        var tex = new Texture2D(res, res);
+        tex.filterMode = FilterMode.Bilinear;
+        var pixels = new Color[res * res];
+        float cx = res * 0.5f;
+        float cy = res * 0.5f;
+
+        Color bodyColor  = new Color(0.3f, 0.35f, 0.3f);
+        Color muzzle     = new Color(0.2f, 0.22f, 0.2f);
+        Color rimColor   = new Color(0.45f, 0.5f, 0.45f);
+        Color baseColor  = new Color(0.35f, 0.35f, 0.4f);
+
+        float bodyHalfW  = res * 0.35f;
+        float bodyHalfH  = res * 0.18f;
+        float bodyLeft   = cx - bodyHalfW * 0.6f;
+        float bodyRight  = cx + bodyHalfW;
+        float baseR      = res * 0.15f;
+        float muzzleR    = bodyHalfH * 0.7f;
+        float capR       = bodyHalfH;
+
+        for (int y = 0; y < res; y++)
+        for (int x = 0; x < res; x++)
+        {
+            float dx = x - cx, dy = y - cy;
+            Color c = Color.clear;
+
+            // Mounting base circle on the left
+            float bdx = x - (cx - bodyHalfW * 0.4f);
+            float bdy = y - cy;
+            if (bdx * bdx + bdy * bdy <= baseR * baseR)
+                c = baseColor;
+
+            // Main tube body (rounded rectangle)
+            if (x >= bodyLeft && x <= bodyRight && Mathf.Abs(dy) <= bodyHalfH)
+                c = bodyColor;
+
+            // Rounded cap on the right end
+            float capCx = bodyRight;
+            float cdx = x - capCx;
+            if (cdx > 0 && cdx * cdx + dy * dy <= capR * capR)
+                c = bodyColor;
+
+            // Muzzle opening (dark circle at right tip)
+            float muzzleCx = bodyRight + capR * 0.3f;
+            float mdx = x - muzzleCx;
+            float mdy = y - cy;
+            if (mdx * mdx + mdy * mdy <= muzzleR * muzzleR)
+                c = muzzle;
+
+            // Rim ring around muzzle
+            float rimInner = muzzleR * 0.85f;
+            float rimOuter = muzzleR * 1.15f;
+            float mDist2 = mdx * mdx + mdy * mdy;
+            if (mDist2 >= rimInner * rimInner && mDist2 <= rimOuter * rimOuter)
+                c = rimColor;
+
+            // Top/bottom tube ridges (subtle highlight lines)
+            if (x >= bodyLeft && x <= bodyRight)
+            {
+                float edgeDist = Mathf.Abs(Mathf.Abs(dy) - bodyHalfH);
+                if (edgeDist < res * 0.02f && Mathf.Abs(dy) <= bodyHalfH)
+                    c = rimColor;
+            }
+
+            pixels[y * res + x] = c;
+        }
+        tex.SetPixels(pixels);
+        tex.Apply();
+        return Sprite.Create(tex, new Rect(0, 0, res, res), new Vector2(0.5f, 0.5f), res);
+    }
+
+    /// <summary>
+    /// Small elongated missile projectile shape with pointed nose and fins.
+    /// White texture intended to be tinted at runtime via SpriteRenderer.color.
+    /// </summary>
+    public static Sprite MissileSprite(int res = 64)
+    {
+        var tex = new Texture2D(res, res);
+        tex.filterMode = FilterMode.Bilinear;
+        var pixels = new Color[res * res];
+        float cx = res * 0.5f;
+        float cy = res * 0.5f;
+
+        float bodyLen = res * 0.35f;
+        float bodyHalfH = res * 0.08f;
+        float noseLen = res * 0.15f;
+        float finLen = res * 0.12f;
+        float finHalfH = res * 0.14f;
+
+        float bodyLeft = cx - bodyLen;
+        float bodyRight = cx + bodyLen * 0.3f;
+        float noseRight = bodyRight + noseLen;
+
+        for (int y = 0; y < res; y++)
+        for (int x = 0; x < res; x++)
+        {
+            float dy = y - cy;
+            bool filled = false;
+
+            // Main body (rectangle)
+            if (x >= bodyLeft && x <= bodyRight && Mathf.Abs(dy) <= bodyHalfH)
+                filled = true;
+
+            // Nose cone (triangle tapering to the right)
+            if (x > bodyRight && x <= noseRight)
+            {
+                float t = (x - bodyRight) / noseLen;
+                if (Mathf.Abs(dy) <= bodyHalfH * (1f - t))
+                    filled = true;
+            }
+
+            // Tail fins (two triangles at the back)
+            if (x >= bodyLeft - finLen && x <= bodyLeft)
+            {
+                float t = (bodyLeft - x) / finLen;
+                float finTop = bodyHalfH + t * (finHalfH - bodyHalfH);
+                if (Mathf.Abs(dy) <= finTop && Mathf.Abs(dy) >= bodyHalfH * (1f - t * 0.5f))
+                    filled = true;
+                // Also fill the body connection area
+                if (Mathf.Abs(dy) <= bodyHalfH)
+                    filled = true;
+            }
+
+            pixels[y * res + x] = filled ? Color.white : Color.clear;
+        }
+        tex.SetPixels(pixels);
+        tex.Apply();
+        return Sprite.Create(tex, new Rect(0, 0, res, res), new Vector2(0.5f, 0.5f), res);
+    }
+
+    /// <summary>
+    /// Crosshair/target reticle sprite for homing upgrade icon.
+    /// </summary>
+    public static Sprite CrosshairSprite(int res = 64)
+    {
+        var tex = new Texture2D(res, res);
+        tex.filterMode = FilterMode.Bilinear;
+        var pixels = new Color[res * res];
+        float cx = res * 0.5f;
+        float cy = res * 0.5f;
+        float outerR = cx - 4f;
+        float innerR = outerR * 0.7f;
+        float lineThick = res * 0.06f;
+        float lineLen = outerR;
+
+        for (int y = 0; y < res; y++)
+        for (int x = 0; x < res; x++)
+        {
+            float dx = x - cx, dy = y - cy;
+            float dist = Mathf.Sqrt(dx * dx + dy * dy);
+            bool filled = false;
+
+            // Outer ring
+            if (dist >= innerR && dist <= outerR)
+                filled = true;
+
+            // Crosshair lines (extending from ring outward)
+            if (Mathf.Abs(dx) <= lineThick && Mathf.Abs(dy) <= lineLen)
+                filled = true;
+            if (Mathf.Abs(dy) <= lineThick && Mathf.Abs(dx) <= lineLen)
+                filled = true;
+
+            // Center dot
+            if (dist <= res * 0.05f)
+                filled = true;
+
+            pixels[y * res + x] = filled ? Color.white : Color.clear;
+        }
+        tex.SetPixels(pixels);
+        tex.Apply();
+        return Sprite.Create(tex, new Rect(0, 0, res, res), new Vector2(0.5f, 0.5f), res);
+    }
+
+    /// <summary>
     /// Horizontal sine wave representing oscillation speed.
     /// </summary>
     public static Sprite WaveSprite(int res = 64)

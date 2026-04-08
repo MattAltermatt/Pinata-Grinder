@@ -3,7 +3,7 @@ using UnityEngine.UI;
 
 /// <summary>
 /// Popup menu that appears when a stopper is clicked.
-/// No weapon: shows buy options for saw and laser (small panel near stopper).
+/// No weapon: shows buy options for saw, laser, and missile (small panel near stopper).
 /// Has weapon: shows full-screen upgrade overlay matching the GlobalUpgrades style,
 /// with weapon name at top, upgrade rows, sell button at bottom, and close button.
 /// </summary>
@@ -25,6 +25,9 @@ public class StopperMenu : MonoBehaviour
     private Text _laserCostLabel;
     private Button _buyLaserBtn;
     private Image _buyLaserBg;
+    private Text _missileCostLabel;
+    private Button _buyMissileBtn;
+    private Image _buyMissileBg;
 
     // Sell stopper row (inside buy panel)
     private Text _sellStopperCostLabel;
@@ -45,6 +48,10 @@ public class StopperMenu : MonoBehaviour
     private Text[] _rowDescLabels;
     private Text[] _rowNameLabels;
     private GameObject[] _rowSoldOutLabels;
+
+    // Direction toggle (for weapons that support it)
+    private GameObject _dirToggleGO;
+    private Text _dirToggleLabel;
 
     private Stopper _currentStopper;
     private Camera _cam;
@@ -86,25 +93,31 @@ public class StopperMenu : MonoBehaviour
         _buyPanel.transform.SetParent(canvas.transform, false);
 
         _buyPanelRect = _buyPanel.AddComponent<RectTransform>();
-        _buyPanelRect.sizeDelta = new Vector2(200f, 320f);
+        _buyPanelRect.sizeDelta = new Vector2(200f, 425f);
 
         var panelImg = _buyPanel.AddComponent<Image>();
         panelImg.color = new Color(0.1f, 0.1f, 0.15f, 0.9f);
 
         BuildBuyRow(_buyPanel.transform, "BuySawRow",
-            new Vector2(10f, 215f), new Vector2(-10f, -10f),
+            new Vector2(10f, 320f), new Vector2(-10f, -10f),
             GameField.SawSprite(), new Color(0.75f, 0.78f, 0.82f),
             out _buySawBg, out _buySawBtn, out _sawCostLabel);
         _buySawBtn.onClick.AddListener(OnBuySawClicked);
 
         BuildBuyRow(_buyPanel.transform, "BuyLaserRow",
-            new Vector2(10f, 110f), new Vector2(-10f, -115f),
+            new Vector2(10f, 215f), new Vector2(-10f, -115f),
             GameField.DishSprite(), Color.white,
             out _buyLaserBg, out _buyLaserBtn, out _laserCostLabel);
         _buyLaserBtn.onClick.AddListener(OnBuyLaserClicked);
 
+        BuildBuyRow(_buyPanel.transform, "BuyMissileRow",
+            new Vector2(10f, 110f), new Vector2(-10f, -220f),
+            GameField.MissileLauncherSprite(), new Color(0.5f, 0.55f, 0.5f),
+            out _buyMissileBg, out _buyMissileBtn, out _missileCostLabel);
+        _buyMissileBtn.onClick.AddListener(OnBuyMissileClicked);
+
         BuildBuyRow(_buyPanel.transform, "SellStopperRow",
-            new Vector2(10f, 10f), new Vector2(-10f, -215f),
+            new Vector2(10f, 10f), new Vector2(-10f, -320f),
             GameField.CircleSprite(), new Color(0.35f, 0.35f, 0.4f),
             out _sellStopperBg, out _sellStopperBtn, out _sellStopperCostLabel);
         _sellStopperBtn.onClick.AddListener(OnSellStopperClicked);
@@ -286,7 +299,8 @@ public class StopperMenu : MonoBehaviour
         float rowGap = 10f;
         float topSpace = 90f;   // title
         float bottomSpace = 90f; // sell button
-        float panelHeight = topSpace + count * rowHeight + (count - 1) * rowGap + bottomSpace;
+        float dirToggleSpace = weapon.HasDirectionToggle ? 80f : 0f;
+        float panelHeight = topSpace + count * rowHeight + (count - 1) * rowGap + dirToggleSpace + bottomSpace;
 
         var panelRect = panel.GetComponent<RectTransform>();
         panelRect.anchorMin = new Vector2(0.5f, 0.5f);
@@ -309,6 +323,48 @@ public class StopperMenu : MonoBehaviour
             float yOffset = topOffset - (rowHeight + rowGap) * i;
             BuildSingleRow(panel, i, info, yOffset, rowHeight);
         }
+
+        // Direction toggle (for weapons that support it, e.g. Saw)
+        if (weapon.HasDirectionToggle)
+            BuildDirectionToggle(panel, topOffset - (rowHeight + rowGap) * count, weapon);
+    }
+
+    void BuildDirectionToggle(Transform panel, float yOffset, Weapon weapon)
+    {
+        _dirToggleGO = new GameObject("DirectionToggle");
+        _dirToggleGO.transform.SetParent(panel, false);
+
+        var rect = _dirToggleGO.AddComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0f, 1f);
+        rect.anchorMax = new Vector2(1f, 1f);
+        rect.pivot = new Vector2(0.5f, 1f);
+        rect.anchoredPosition = new Vector2(0f, yOffset);
+        rect.sizeDelta = new Vector2(-30f, 65f);
+
+        var bg = _dirToggleGO.AddComponent<Image>();
+        bg.color = new Color(0.2f, 0.25f, 0.35f, 0.9f);
+
+        var btn = _dirToggleGO.AddComponent<Button>();
+        btn.targetGraphic = bg;
+        btn.onClick.AddListener(OnDirectionToggleClicked);
+
+        var labelGo = new GameObject("Label");
+        labelGo.transform.SetParent(_dirToggleGO.transform, false);
+        var labelRect = labelGo.AddComponent<RectTransform>();
+        labelRect.anchorMin = Vector2.zero;
+        labelRect.anchorMax = Vector2.one;
+        labelRect.offsetMin = Vector2.zero;
+        labelRect.offsetMax = Vector2.zero;
+
+        _dirToggleLabel = labelGo.AddComponent<Text>();
+        _dirToggleLabel.font = _font;
+        _dirToggleLabel.fontSize = 28;
+        _dirToggleLabel.fontStyle = FontStyle.Bold;
+        _dirToggleLabel.alignment = TextAnchor.MiddleCenter;
+        _dirToggleLabel.color = Color.white;
+        _dirToggleLabel.raycastTarget = false;
+
+        RefreshDirectionToggle();
     }
 
     void BuildSingleRow(Transform parent, int index, UpgradeSlotInfo info, float yOffset, float height)
@@ -450,10 +506,19 @@ public class StopperMenu : MonoBehaviour
 
     void ClearUpgradeRows()
     {
-        if (_rowGOs == null) return;
-        foreach (var go in _rowGOs)
-            if (go != null) Destroy(go);
-        _rowGOs = null;
+        if (_rowGOs != null)
+        {
+            foreach (var go in _rowGOs)
+                if (go != null) Destroy(go);
+            _rowGOs = null;
+        }
+
+        if (_dirToggleGO != null)
+        {
+            Destroy(_dirToggleGO);
+            _dirToggleGO = null;
+            _dirToggleLabel = null;
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -522,6 +587,16 @@ public class StopperMenu : MonoBehaviour
         }
     }
 
+    void OnBuyMissileClicked()
+    {
+        if (_currentStopper == null) return;
+        if (Economy.Instance.TryBuyMissile())
+        {
+            StopperFactory.Instance.AttachMissile(_currentStopper);
+            Hide();
+        }
+    }
+
     void OnSellStopperClicked()
     {
         if (_currentStopper == null) return;
@@ -541,6 +616,20 @@ public class StopperMenu : MonoBehaviour
             RefreshUpgradeRows();
             RefreshSellButton();
         }
+    }
+
+    void OnDirectionToggleClicked()
+    {
+        if (_currentStopper == null || !_currentStopper.HasWeapon) return;
+        _currentStopper.Weapon.ToggleDirection();
+        RefreshDirectionToggle();
+    }
+
+    void RefreshDirectionToggle()
+    {
+        if (_dirToggleLabel == null || _currentStopper == null || !_currentStopper.HasWeapon) return;
+        bool cw = _currentStopper.Weapon.IsClockwise;
+        _dirToggleLabel.text = cw ? "Direction: CW" : "Direction: CCW";
     }
 
     void OnSellClicked()
@@ -577,6 +666,12 @@ public class StopperMenu : MonoBehaviour
         _buyLaserBg.color = canAffordLaser ? AffordBg : CantAffordBg;
         _buyLaserBtn.interactable = canAffordLaser;
 
+        int missileCost = Economy.Instance.MissileCost;
+        _missileCostLabel.text = "$" + missileCost;
+        bool canAffordMissile = Economy.Instance.CanAffordMissile();
+        _buyMissileBg.color = canAffordMissile ? AffordBg : CantAffordBg;
+        _buyMissileBtn.interactable = canAffordMissile;
+
         int sellPrice = Economy.Instance.StopperSellPrice;
         var allStoppers = Object.FindObjectsByType<Stopper>(FindObjectsSortMode.None);
         bool canSell = allStoppers.Length > 1 && sellPrice > 0;
@@ -591,19 +686,30 @@ public class StopperMenu : MonoBehaviour
         var weapon = _currentStopper.Weapon;
         int money = Economy.Instance.Money;
 
+        bool debug = Weapon.IsDebugMode;
         for (int i = 0; i < weapon.UpgradeSlotCount; i++)
         {
             var info = weapon.GetSlotInfo(i);
             _rowNameLabels[i].text = info.Name;
             _rowDescLabels[i].text = info.Description;
-            _rowSoldOutLabels[i].SetActive(info.IsMaxed);
 
-            if (info.IsMaxed)
+            if (debug)
             {
+                // In editor: all upgrades always available and free
+                _rowSoldOutLabels[i].SetActive(false);
+                _rowBtns[i].gameObject.SetActive(true);
+                _rowCostLabels[i].text = "FREE";
+                _rowBgs[i].color = AffordBg;
+                _rowBtns[i].interactable = true;
+            }
+            else if (info.IsMaxed)
+            {
+                _rowSoldOutLabels[i].SetActive(true);
                 _rowBtns[i].gameObject.SetActive(false);
             }
             else
             {
+                _rowSoldOutLabels[i].SetActive(false);
                 _rowBtns[i].gameObject.SetActive(true);
                 _rowCostLabels[i].text = "$" + info.Cost;
 

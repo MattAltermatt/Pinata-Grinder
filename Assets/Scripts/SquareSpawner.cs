@@ -1,7 +1,9 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Spawns composite pinatas — grids of coloured squares that fall as one body.
+/// Spawns composite pinatas — random connected shapes of coloured squares that
+/// fall as one body. Shapes are generated via a center-biased growth algorithm.
 /// Oscillates horizontally above the screen. Each square has independent health.
 /// </summary>
 public class SquareSpawner : MonoBehaviour
@@ -35,17 +37,32 @@ public class SquareSpawner : MonoBehaviour
         _timer = spawnInterval;
     }
 
+    private static readonly (int, int)[] Dirs = { (1, 0), (-1, 0), (0, 1), (0, -1) };
+
     void Update()
     {
         _timer += Time.deltaTime;
         if (_timer < spawnInterval) return;
         _timer = 0f;
 
-        float pinataWidth  = gridWidth  * squareSize;
-        float pinataHeight = gridHeight * squareSize;
+        int targetCount = gridWidth * gridHeight;
+        var shape = GenerateShape(targetCount);
 
-        // Oscillate spawn x within field bounds
+        // Compute bounding box for oscillation and overlap check
+        int minC = int.MaxValue, maxC = int.MinValue;
+        int minR = int.MaxValue, maxR = int.MinValue;
+        foreach (var (c, r) in shape)
+        {
+            if (c < minC) minC = c;
+            if (c > maxC) maxC = c;
+            if (r < minR) minR = r;
+            if (r > maxR) maxR = r;
+        }
+        float pinataWidth  = (maxC - minC + 1) * squareSize;
+        float pinataHeight = (maxR - minR + 1) * squareSize;
+
         float maxX = fieldWidth * 0.5f - pinataWidth * 0.5f;
+        if (maxX < 0f) maxX = 0f;
         float spawnX = Mathf.Sin(Time.time * oscillateSpeed) * maxX;
 
         Vector2 spawnPos = new Vector2(spawnX, spawnY);
@@ -53,10 +70,11 @@ public class SquareSpawner : MonoBehaviour
         if (Physics2D.OverlapBox(spawnPos, new Vector2(pinataWidth, pinataHeight), 0f) != null)
             return;
 
-        SpawnPinata(spawnX);
+        SpawnPinata(spawnX, shape, minC, maxC, minR, maxR);
     }
 
-    void SpawnPinata(float spawnX)
+    void SpawnPinata(float spawnX, List<(int col, int row)> shape,
+        int minC, int maxC, int minR, int maxR)
     {
         var parent = new GameObject("Pinata");
         parent.transform.position = new Vector3(spawnX, spawnY, 0f);
@@ -72,11 +90,11 @@ public class SquareSpawner : MonoBehaviour
         var pinata = parent.AddComponent<Pinata>();
         var color  = Random.ColorHSV(0f, 1f, 0.35f, 0.55f, 0.95f, 1f);
 
-        float offsetX = (gridWidth  - 1) * 0.5f;
-        float offsetY = (gridHeight - 1) * 0.5f;
+        // Center the shape on the parent transform
+        float offsetX = (minC + maxC) * 0.5f;
+        float offsetY = (minR + maxR) * 0.5f;
 
-        for (int row = 0; row < gridHeight; row++)
-        for (int col = 0; col < gridWidth; col++)
+        foreach (var (col, row) in shape)
         {
             var sq = new GameObject("Square");
             sq.transform.SetParent(parent.transform, false);
@@ -97,6 +115,84 @@ public class SquareSpawner : MonoBehaviour
             ps.Init(pinata, squareHealth, col, row);
             pinata.Register(ps);
         }
+    }
+
+    /// <summary>
+    /// Generates a random connected shape via center-biased growth.
+    /// Starts at (0,0) and expands outward, preferring cells closer to center.
+    /// Guaranteed to produce a single connected component.
+    /// </summary>
+    List<(int col, int row)> GenerateShape(int targetCount)
+    {
+        var filled = new HashSet<(int, int)>();
+        var frontierSet = new HashSet<(int, int)>();
+        var frontier = new List<(int, int)>();
+        var result = new List<(int, int)>(targetCount);
+
+        // Seed at center
+        filled.Add((0, 0));
+        result.Add((0, 0));
+
+        // Add initial frontier
+        foreach (var (dc, dr) in Dirs)
+        {
+            var n = (dc, dr);
+            if (!filled.Contains(n) && frontierSet.Add(n))
+                frontier.Add(n);
+        }
+
+        while (result.Count < targetCount && frontier.Count > 0)
+        {
+            // Weighted random pick: prefer cells closer to center
+            int picked = WeightedPick(frontier);
+            var cell = frontier[picked];
+
+            // Remove picked (swap with last for O(1))
+            frontier[picked] = frontier[frontier.Count - 1];
+            frontier.RemoveAt(frontier.Count - 1);
+            frontierSet.Remove(cell);
+
+            filled.Add(cell);
+            result.Add(cell);
+
+            // Add new frontier cells
+            foreach (var (dc, dr) in Dirs)
+            {
+                var n = (cell.Item1 + dc, cell.Item2 + dr);
+                if (!filled.Contains(n) && frontierSet.Add(n))
+                    frontier.Add(n);
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Picks a random index from the frontier, weighted by proximity to center.
+    /// Cells closer to (0,0) are more likely to be picked.
+    /// </summary>
+    static int WeightedPick(List<(int, int)> frontier)
+    {
+        float totalWeight = 0f;
+        for (int i = 0; i < frontier.Count; i++)
+        {
+            var (c, r) = frontier[i];
+            float dist = Mathf.Sqrt(c * c + r * r);
+            totalWeight += 1f / (1f + dist);
+        }
+
+        float roll = Random.Range(0f, totalWeight);
+        float cumulative = 0f;
+        for (int i = 0; i < frontier.Count; i++)
+        {
+            var (c, r) = frontier[i];
+            float dist = Mathf.Sqrt(c * c + r * r);
+            cumulative += 1f / (1f + dist);
+            if (roll <= cumulative)
+                return i;
+        }
+
+        return frontier.Count - 1;
     }
 
     static Sprite BuildSquareSprite()
