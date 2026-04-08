@@ -25,15 +25,16 @@ public class ConfettiBurst : MonoBehaviour
         // ── Main ──────────────────────────────────────────────────────────────
         var main = ps.main;
         main.loop            = false;
-        main.startLifetime   = new ParticleSystem.MinMaxCurve(1f, 2.5f);
-        main.startSpeed      = new ParticleSystem.MinMaxCurve(1.5f, 6f);
-        main.startSize       = new ParticleSystem.MinMaxCurve(0.06f, 0.2f);
+        main.startLifetime   = new ParticleSystem.MinMaxCurve(0.5f, 1.2f);
+        main.startSpeed      = new ParticleSystem.MinMaxCurve(0.5f, 2f);
+        main.startSize       = new ParticleSystem.MinMaxCurve(0.03f, 0.08f);
         main.startRotation   = new ParticleSystem.MinMaxCurve(
             -180f * Mathf.Deg2Rad, 180f * Mathf.Deg2Rad);
         main.startColor      = squareColor;
         main.gravityModifier = 0.4f;
         main.maxParticles    = 15;
         main.simulationSpace = ParticleSystemSimulationSpace.World;
+        main.scalingMode     = ParticleSystemScalingMode.Hierarchy;
 
         // ── Emission (single burst) ───────────────────────────────────────────
         var emission = ps.emission;
@@ -62,6 +63,6 @@ public class ConfettiBurst : MonoBehaviour
         rot.z       = new ParticleSystem.MinMaxCurve(-270f * Mathf.Deg2Rad, 270f * Mathf.Deg2Rad);
 
         ps.Play();
-        Destroy(gameObject, 3f);
+        Destroy(gameObject, 1.5f);
     }
 }

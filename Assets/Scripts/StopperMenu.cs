@@ -16,9 +16,8 @@ public class StopperMenu : MonoBehaviour
     private static readonly Color CantAffordBg = new(0.3f, 0.1f, 0.1f, 0.6f);
     private static readonly Color MaxedBg = new(0.35f, 0.3f, 0.1f, 0.9f);
 
-    // Buy panel (small, near stopper)
-    private GameObject _buyPanel;
-    private RectTransform _buyPanelRect;
+    // Buy overlay (full-screen, matching GlobalUpgrades style)
+    private GameObject _buyOverlay;
     private Text _sawCostLabel;
     private Button _buySawBtn;
     private Image _buySawBg;
@@ -28,8 +27,11 @@ public class StopperMenu : MonoBehaviour
     private Text _missileCostLabel;
     private Button _buyMissileBtn;
     private Image _buyMissileBg;
+    private GameObject _sawSoldOut;
+    private GameObject _laserSoldOut;
+    private GameObject _missileSoldOut;
 
-    // Sell stopper row (inside buy panel)
+    // Sell stopper row (inside buy overlay)
     private Text _sellStopperCostLabel;
     private Button _sellStopperBtn;
     private Image _sellStopperBg;
@@ -54,23 +56,20 @@ public class StopperMenu : MonoBehaviour
     private Text _dirToggleLabel;
 
     private Stopper _currentStopper;
-    private Camera _cam;
-    private int _showFrame;
     private Font _font;
 
     void Awake()
     {
         if (Instance != null && Instance != this) { Destroy(this); return; }
         Instance = this;
-        _cam = Camera.main;
     }
 
     void Start()
     {
         _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        BuildBuyPanel();
+        BuildBuyOverlay();
         BuildUpgradeOverlay();
-        _buyPanel.SetActive(false);
+        _buyOverlay.SetActive(false);
         _upgradeOverlay.SetActive(false);
         Economy.Instance.OnMoneyChanged += OnMoneyChanged;
     }
@@ -85,88 +84,243 @@ public class StopperMenu : MonoBehaviour
     // Buy Panel (small popup near stopper — no weapon equipped)
     // ═══════════════════════════════════════════════════════════════
 
-    void BuildBuyPanel()
+    void BuildBuyOverlay()
     {
         var canvas = EconomyUI.Instance.Canvas;
 
-        _buyPanel = new GameObject("StopperBuyPanel");
-        _buyPanel.transform.SetParent(canvas.transform, false);
+        // Full-screen backdrop (matches GlobalUpgradesUI style)
+        _buyOverlay = new GameObject("StopperBuyOverlay");
+        _buyOverlay.transform.SetParent(canvas.transform, false);
 
-        _buyPanelRect = _buyPanel.AddComponent<RectTransform>();
-        _buyPanelRect.sizeDelta = new Vector2(200f, 425f);
+        var backdropRect = _buyOverlay.AddComponent<RectTransform>();
+        backdropRect.anchorMin = Vector2.zero;
+        backdropRect.anchorMax = Vector2.one;
+        backdropRect.offsetMin = Vector2.zero;
+        backdropRect.offsetMax = Vector2.zero;
 
-        var panelImg = _buyPanel.AddComponent<Image>();
-        panelImg.color = new Color(0.1f, 0.1f, 0.15f, 0.9f);
+        var backdropImg = _buyOverlay.AddComponent<Image>();
+        backdropImg.color = new Color(0f, 0f, 0f, 0.5f);
+        backdropImg.raycastTarget = true;
 
-        BuildBuyRow(_buyPanel.transform, "BuySawRow",
-            new Vector2(10f, 320f), new Vector2(-10f, -10f),
+        // Center panel
+        var panel = new GameObject("Panel");
+        panel.transform.SetParent(_buyOverlay.transform, false);
+
+        float rowHeight = 140f;
+        float rowGap = 10f;
+        float topSpace = 90f;
+        float bottomSpace = 30f;
+        int rowCount = 4; // saw, laser, missile, sell stopper
+        float panelHeight = topSpace + rowCount * rowHeight + (rowCount - 1) * rowGap + bottomSpace;
+
+        var panelRect = panel.AddComponent<RectTransform>();
+        panelRect.anchorMin = new Vector2(0.5f, 0.5f);
+        panelRect.anchorMax = new Vector2(0.5f, 0.5f);
+        panelRect.pivot = new Vector2(0.5f, 0.5f);
+        panelRect.sizeDelta = new Vector2(700f, panelHeight);
+
+        panel.AddComponent<Image>().color = new Color(0.1f, 0.1f, 0.15f, 0.95f);
+
+        // Title
+        var titleGo = new GameObject("Title");
+        titleGo.transform.SetParent(panel.transform, false);
+        var titleRect = titleGo.AddComponent<RectTransform>();
+        titleRect.anchorMin = new Vector2(0f, 1f);
+        titleRect.anchorMax = new Vector2(1f, 1f);
+        titleRect.pivot = new Vector2(0.5f, 1f);
+        titleRect.anchoredPosition = new Vector2(0f, -10f);
+        titleRect.sizeDelta = new Vector2(0f, 70f);
+
+        var titleText = titleGo.AddComponent<Text>();
+        titleText.text = "BUY WEAPON";
+        titleText.font = _font;
+        titleText.fontSize = 40;
+        titleText.fontStyle = FontStyle.Bold;
+        titleText.alignment = TextAnchor.MiddleCenter;
+        titleText.color = Color.white;
+        titleText.raycastTarget = false;
+
+        // Close button
+        var closeGo = new GameObject("CloseButton");
+        closeGo.transform.SetParent(panel.transform, false);
+        var closeRect = closeGo.AddComponent<RectTransform>();
+        closeRect.anchorMin = new Vector2(1f, 1f);
+        closeRect.anchorMax = new Vector2(1f, 1f);
+        closeRect.pivot = new Vector2(1f, 1f);
+        closeRect.anchoredPosition = new Vector2(-5f, -5f);
+        closeRect.sizeDelta = new Vector2(60f, 60f);
+
+        var closeBg = closeGo.AddComponent<Image>();
+        closeBg.color = new Color(0.5f, 0.15f, 0.1f, 0.9f);
+        var closeBtn = closeGo.AddComponent<Button>();
+        closeBtn.targetGraphic = closeBg;
+        closeBtn.onClick.AddListener(Hide);
+
+        var xGo = new GameObject("X");
+        xGo.transform.SetParent(closeGo.transform, false);
+        var xRect = xGo.AddComponent<RectTransform>();
+        xRect.anchorMin = Vector2.zero;
+        xRect.anchorMax = Vector2.one;
+        xRect.offsetMin = Vector2.zero;
+        xRect.offsetMax = Vector2.zero;
+        var xText = xGo.AddComponent<Text>();
+        xText.text = "X";
+        xText.font = _font;
+        xText.fontSize = 36;
+        xText.fontStyle = FontStyle.Bold;
+        xText.alignment = TextAnchor.MiddleCenter;
+        xText.color = Color.white;
+        xText.raycastTarget = false;
+
+        // Weapon rows
+        float topOffset = -topSpace;
+        BuildBuyOverlayRow(panel.transform, "Saw", "Orbiting blades that shred on contact",
             GameField.SawSprite(), new Color(0.75f, 0.78f, 0.82f),
-            out _buySawBg, out _buySawBtn, out _sawCostLabel);
+            topOffset, rowHeight,
+            out _buySawBg, out _buySawBtn, out _sawCostLabel, out _sawSoldOut);
         _buySawBtn.onClick.AddListener(OnBuySawClicked);
 
-        BuildBuyRow(_buyPanel.transform, "BuyLaserRow",
-            new Vector2(10f, 215f), new Vector2(-10f, -115f),
+        BuildBuyOverlayRow(panel.transform, "Laser", "Locks on and burns targets with a beam",
             GameField.DishSprite(), Color.white,
-            out _buyLaserBg, out _buyLaserBtn, out _laserCostLabel);
+            topOffset - (rowHeight + rowGap), rowHeight,
+            out _buyLaserBg, out _buyLaserBtn, out _laserCostLabel, out _laserSoldOut);
         _buyLaserBtn.onClick.AddListener(OnBuyLaserClicked);
 
-        BuildBuyRow(_buyPanel.transform, "BuyMissileRow",
-            new Vector2(10f, 110f), new Vector2(-10f, -220f),
+        BuildBuyOverlayRow(panel.transform, "Missile", "Fires explosive AOE projectiles",
             GameField.MissileLauncherSprite(), new Color(0.5f, 0.55f, 0.5f),
-            out _buyMissileBg, out _buyMissileBtn, out _missileCostLabel);
+            topOffset - (rowHeight + rowGap) * 2f, rowHeight,
+            out _buyMissileBg, out _buyMissileBtn, out _missileCostLabel, out _missileSoldOut);
         _buyMissileBtn.onClick.AddListener(OnBuyMissileClicked);
 
-        BuildBuyRow(_buyPanel.transform, "SellStopperRow",
-            new Vector2(10f, 10f), new Vector2(-10f, -320f),
+        // Sell stopper row (red-tinted)
+        BuildBuyOverlayRow(panel.transform, "Sell Stopper", "Remove this stopper for a refund",
             GameField.CircleSprite(), new Color(0.35f, 0.35f, 0.4f),
-            out _sellStopperBg, out _sellStopperBtn, out _sellStopperCostLabel);
+            topOffset - (rowHeight + rowGap) * 3f, rowHeight,
+            out _sellStopperBg, out _sellStopperBtn, out _sellStopperCostLabel, out _);
         _sellStopperBtn.onClick.AddListener(OnSellStopperClicked);
     }
 
-    void BuildBuyRow(Transform parent, string name,
-        Vector2 offsetMin, Vector2 offsetMax,
-        Sprite icon, Color iconColor,
-        out Image bg, out Button btn, out Text costLabel)
+    void BuildBuyOverlayRow(Transform parent, string rowName, string description,
+        Sprite icon, Color iconColor, float yOffset, float height,
+        out Image buyBg, out Button buyBtn, out Text costLabel, out GameObject soldOut)
     {
-        var row = new GameObject(name);
+        var row = new GameObject(rowName + "Row");
         row.transform.SetParent(parent, false);
 
         var rowRect = row.AddComponent<RectTransform>();
-        rowRect.anchorMin = Vector2.zero;
-        rowRect.anchorMax = Vector2.one;
-        rowRect.offsetMin = offsetMin;
-        rowRect.offsetMax = offsetMax;
+        rowRect.anchorMin = new Vector2(0f, 1f);
+        rowRect.anchorMax = new Vector2(1f, 1f);
+        rowRect.pivot = new Vector2(0.5f, 1f);
+        rowRect.anchoredPosition = new Vector2(0f, yOffset);
+        rowRect.sizeDelta = new Vector2(-30f, height);
 
-        bg = row.AddComponent<Image>();
-        bg.color = AffordBg;
-        btn = row.AddComponent<Button>();
-        btn.targetGraphic = bg;
+        row.AddComponent<Image>().color = DarkBg;
 
+        // Icon (left)
         var iconGo = new GameObject("Icon");
         iconGo.transform.SetParent(row.transform, false);
         var iconRect = iconGo.AddComponent<RectTransform>();
         iconRect.anchorMin = new Vector2(0f, 0.5f);
         iconRect.anchorMax = new Vector2(0f, 0.5f);
         iconRect.pivot = new Vector2(0f, 0.5f);
-        iconRect.anchoredPosition = new Vector2(10f, 0f);
-        iconRect.sizeDelta = new Vector2(50f, 50f);
+        iconRect.anchoredPosition = new Vector2(15f, 0f);
+        iconRect.sizeDelta = new Vector2(80f, 80f);
 
         var iconImg = iconGo.AddComponent<Image>();
         iconImg.sprite = icon;
         iconImg.color = iconColor;
         iconImg.raycastTarget = false;
 
+        // Sold out overlay on icon
+        var soldOutGo = new GameObject("SoldOut");
+        soldOutGo.transform.SetParent(iconGo.transform, false);
+        var soldOutRect = soldOutGo.AddComponent<RectTransform>();
+        soldOutRect.anchorMin = Vector2.zero;
+        soldOutRect.anchorMax = Vector2.one;
+        soldOutRect.offsetMin = Vector2.zero;
+        soldOutRect.offsetMax = Vector2.zero;
+        soldOutGo.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.7f);
+
+        var soldOutTextGo = new GameObject("Text");
+        soldOutTextGo.transform.SetParent(soldOutGo.transform, false);
+        var stRect = soldOutTextGo.AddComponent<RectTransform>();
+        stRect.anchorMin = Vector2.zero;
+        stRect.anchorMax = Vector2.one;
+        stRect.offsetMin = Vector2.zero;
+        stRect.offsetMax = Vector2.zero;
+        var soldOutText = soldOutTextGo.AddComponent<Text>();
+        soldOutText.text = "SOLD\nOUT";
+        soldOutText.font = _font;
+        soldOutText.fontSize = 20;
+        soldOutText.fontStyle = FontStyle.Bold;
+        soldOutText.alignment = TextAnchor.MiddleCenter;
+        soldOutText.color = new Color(1f, 0.3f, 0.2f);
+        soldOutText.raycastTarget = false;
+        soldOutGo.SetActive(false);
+        soldOut = soldOutGo;
+
+        // Name (center-top)
+        var nameGo = new GameObject("Name");
+        nameGo.transform.SetParent(row.transform, false);
+        var nameRect = nameGo.AddComponent<RectTransform>();
+        nameRect.anchorMin = new Vector2(0f, 0.5f);
+        nameRect.anchorMax = new Vector2(1f, 1f);
+        nameRect.offsetMin = new Vector2(110f, 0f);
+        nameRect.offsetMax = new Vector2(-170f, -10f);
+
+        var nameText = nameGo.AddComponent<Text>();
+        nameText.text = rowName;
+        nameText.font = _font;
+        nameText.fontSize = 30;
+        nameText.fontStyle = FontStyle.Bold;
+        nameText.alignment = TextAnchor.MiddleLeft;
+        nameText.color = Color.white;
+        nameText.raycastTarget = false;
+
+        // Description (center-bottom)
+        var descGo = new GameObject("Description");
+        descGo.transform.SetParent(row.transform, false);
+        var descRect = descGo.AddComponent<RectTransform>();
+        descRect.anchorMin = new Vector2(0f, 0f);
+        descRect.anchorMax = new Vector2(1f, 0.5f);
+        descRect.offsetMin = new Vector2(110f, 10f);
+        descRect.offsetMax = new Vector2(-170f, 0f);
+
+        var descText = descGo.AddComponent<Text>();
+        descText.text = description;
+        descText.font = _font;
+        descText.fontSize = 22;
+        descText.alignment = TextAnchor.MiddleLeft;
+        descText.color = new Color(0.6f, 0.6f, 0.7f);
+        descText.raycastTarget = false;
+
+        // Buy button (right)
+        var buyGo = new GameObject("BuyButton");
+        buyGo.transform.SetParent(row.transform, false);
+        var buyRect = buyGo.AddComponent<RectTransform>();
+        buyRect.anchorMin = new Vector2(1f, 0.5f);
+        buyRect.anchorMax = new Vector2(1f, 0.5f);
+        buyRect.pivot = new Vector2(1f, 0.5f);
+        buyRect.anchoredPosition = new Vector2(-15f, 0f);
+        buyRect.sizeDelta = new Vector2(140f, 70f);
+
+        buyBg = buyGo.AddComponent<Image>();
+        buyBg.color = AffordBg;
+
+        buyBtn = buyGo.AddComponent<Button>();
+        buyBtn.targetGraphic = buyBg;
+
         var costGo = new GameObject("CostLabel");
-        costGo.transform.SetParent(row.transform, false);
+        costGo.transform.SetParent(buyGo.transform, false);
         var costRect = costGo.AddComponent<RectTransform>();
-        costRect.anchorMin = new Vector2(0.4f, 0f);
-        costRect.anchorMax = new Vector2(1f, 1f);
+        costRect.anchorMin = Vector2.zero;
+        costRect.anchorMax = Vector2.one;
         costRect.offsetMin = Vector2.zero;
         costRect.offsetMax = Vector2.zero;
 
         costLabel = costGo.AddComponent<Text>();
         costLabel.font = _font;
-        costLabel.fontSize = 32;
+        costLabel.fontSize = 28;
         costLabel.fontStyle = FontStyle.Bold;
         costLabel.alignment = TextAnchor.MiddleCenter;
         costLabel.color = Color.white;
@@ -531,7 +685,7 @@ public class StopperMenu : MonoBehaviour
 
         if (stopper.HasWeapon)
         {
-            _buyPanel.SetActive(false);
+            _buyOverlay.SetActive(false);
             _weaponNameLabel.text = stopper.Weapon.DisplayName.ToUpper();
             BuildUpgradeRows(stopper.Weapon);
             RefreshUpgradeRows();
@@ -541,24 +695,16 @@ public class StopperMenu : MonoBehaviour
         else
         {
             _upgradeOverlay.SetActive(false);
-
-            Vector3 screenPos = _cam.WorldToScreenPoint(stopper.transform.position);
-            var canvasRect = EconomyUI.Instance.Canvas.GetComponent<RectTransform>();
-            RectTransformUtility.ScreenPointToLocalPointInRectangle(
-                canvasRect, screenPos, null, out Vector2 localPos);
-            _buyPanelRect.anchoredPosition = localPos + new Vector2(0f, 140f);
-
             RefreshBuyButtons();
-            _buyPanel.SetActive(true);
+            _buyOverlay.SetActive(true);
         }
 
-        _showFrame = Time.frameCount;
     }
 
     public void Hide()
     {
         ClearUpgradeRows();
-        _buyPanel.SetActive(false);
+        _buyOverlay.SetActive(false);
         _upgradeOverlay.SetActive(false);
         _currentStopper = null;
     }
@@ -601,7 +747,7 @@ public class StopperMenu : MonoBehaviour
     {
         if (_currentStopper == null) return;
         if (_currentStopper.HasWeapon) return;
-        var allStoppers = Object.FindObjectsByType<Stopper>(FindObjectsSortMode.None);
+        var allStoppers = Object.FindObjectsByType<Stopper>(FindObjectsInactive.Exclude);
         if (allStoppers.Length <= 1) return;
         if (!Economy.Instance.TrySellStopper()) return;
         StopperFactory.Instance.DestroyStopper(_currentStopper);
@@ -646,7 +792,7 @@ public class StopperMenu : MonoBehaviour
 
     void OnMoneyChanged(int money)
     {
-        if (_buyPanel.activeSelf)
+        if (_buyOverlay.activeSelf)
             RefreshBuyButtons();
         if (_upgradeOverlay.activeSelf)
             RefreshUpgradeRows();
@@ -673,7 +819,7 @@ public class StopperMenu : MonoBehaviour
         _buyMissileBtn.interactable = canAffordMissile;
 
         int sellPrice = Economy.Instance.StopperSellPrice;
-        var allStoppers = Object.FindObjectsByType<Stopper>(FindObjectsSortMode.None);
+        var allStoppers = Object.FindObjectsByType<Stopper>(FindObjectsInactive.Exclude);
         bool canSell = allStoppers.Length > 1 && sellPrice > 0;
         _sellStopperCostLabel.text = canSell ? "Sell $" + sellPrice : "Sell";
         _sellStopperBg.color = canSell ? new Color(0.5f, 0.15f, 0.1f, 0.9f) : CantAffordBg;
@@ -727,21 +873,4 @@ public class StopperMenu : MonoBehaviour
         _sellCostLabel.text = "Sell $" + refund;
     }
 
-    // ── Click outside to close buy panel ──
-
-    void LateUpdate()
-    {
-        if (_buyPanel == null || !_buyPanel.activeSelf) return;
-        if (Time.frameCount <= _showFrame) return;
-
-        var mouse = UnityEngine.InputSystem.Mouse.current;
-        if (mouse == null) return;
-
-        if (mouse.leftButton.wasPressedThisFrame)
-        {
-            Vector2 mousePos = mouse.position.ReadValue();
-            if (!RectTransformUtility.RectangleContainsScreenPoint(_buyPanelRect, mousePos))
-                Hide();
-        }
-    }
 }

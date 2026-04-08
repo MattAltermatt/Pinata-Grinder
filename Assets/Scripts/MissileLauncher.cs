@@ -80,7 +80,7 @@ public class MissileLauncher : MonoBehaviour
 
     void AcquireTarget()
     {
-        var pinatas = FindObjectsByType<Pinata>(FindObjectsSortMode.None);
+        var pinatas = FindObjectsByType<Pinata>(FindObjectsInactive.Exclude);
         float bestScore = float.MaxValue;
         Pinata best = null;
         Vector2 aimDir = transform.right;

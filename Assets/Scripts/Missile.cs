@@ -143,7 +143,7 @@ public class Missile : MonoBehaviour
     /// </summary>
     bool CheckContactWithSquare()
     {
-        var squares = FindObjectsByType<PinataSquare>(FindObjectsSortMode.None);
+        var squares = FindObjectsByType<PinataSquare>(FindObjectsInactive.Exclude);
         Vector2 pos = transform.position;
 
         for (int i = 0; i < squares.Length; i++)
@@ -163,7 +163,7 @@ public class Missile : MonoBehaviour
         Vector2 pos = transform.position;
 
         // AOE damage to all alive squares within blast radius
-        var squares = FindObjectsByType<PinataSquare>(FindObjectsSortMode.None);
+        var squares = FindObjectsByType<PinataSquare>(FindObjectsInactive.Exclude);
         float r2 = _blastRadius * _blastRadius;
         for (int i = 0; i < squares.Length; i++)
         {
