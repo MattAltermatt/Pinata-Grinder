@@ -71,7 +71,7 @@ new stoppers don't overlap existing ones.
 | `GlobalUpgrades.cs` | Singleton managing 6 global upgrade levels (wall size, pinata size, spawner rate, oscillation, pinata HP, death line damage); applies effects to GameField, SquareSpawner, StopperFactory; `CaptureState`/`RestoreState` for save system |
 | `GlobalUpgradesUI.cs` | "Upgrades" button below Buy Stopper; full-screen overlay with 6 upgrade rows, cost labels, descriptions, and "SOLD OUT" state for maxed upgrades |
 | `Pinata.cs` | Parent controller for composite pinatas; manages child square list and detachment |
-| `PinataSquare.cs` | Individual square within a pinata; tracks health, takes damage, darkens/shrinks on death; exposes `IsDead` property; dead squares earn $1 and spawn confetti at death line |
+| `PinataSquare.cs` | Individual square within a pinata; tracks health, takes damage, darkens/shrinks on death; exposes `IsDead` property; dead squares collected at death line (confetti + money); live squares take continuous DPS from death line |
 | `Weapon.cs` | Abstract base class for weapon groups; defines `Init`, `Type`, `DisplayName`, `Upgrades`, `UpgradeSlotCount`, `GetSlotInfo`, `TryUpgrade`; `WeaponType` enum: None, Saw, Laser, Missile |
 | `WeaponUpgradeData.cs` | Plain C# class tracking per-weapon upgrade levels and total investment for sell price |
 | `UpgradeSlotInfo.cs` | Struct with upgrade slot UI info (name, description, icon, cost, level, maxLevel) |
@@ -240,7 +240,7 @@ money invested (base cost + all upgrade costs). Sell price = `TotalInvestment`.
 - **Homing**: upgradeable; missiles curve toward target via `Vector2.Lerp(_direction, toTarget, strength * dt)`
 - **AOE detonation**: contact trigger (AABB overlap with any alive square) or wall
   boundary hit; on detonation, damages all alive `PinataSquare`s within blast radius
-  via `FindObjectsByType` + distance check
+  via `PinataSquare.All` static list + distance check
 - **Projectile**: `Missile.cs` — fire-and-forget, no Rigidbody2D/collider, moves via
   `transform.position +=`, self-destructs after 10s or 20 units offscreen
 - **VFX**: smoke/fire trail (ParticleSystem, detached on detonation to fade),
@@ -310,7 +310,7 @@ subsequent gameplay.
 | Spawn interval | 7 seconds | 1 |
 | Oscillation period | 20 seconds | ~6.28s |
 | Square health | 1 HP | 1 |
-| Death line damage | 1 | N/A (was instant destroy) |
+| Death line damage | 1 DPS | N/A (was instant destroy) |
 
 ### Upgrade Details
 
@@ -321,12 +321,18 @@ subsequent gameplay.
 | Spawner Rate | `7 × (0.1/7)^(level/20)` | 7s → 0.1s | 20 |
 | Oscillation | `period = 20 × (1/20)^(level/20)` | 20s → 1s | 20 |
 | Pinata HP | `1 + 0.3 × level^1.5` (accelerating) | 1 → ~28 at Lv 20 | Unlimited |
-| Death Line Dmg | `1 + level × 0.5` (linear) | 1 → 11 at Lv 20 | Unlimited |
+| Death Line Dmg | `1 + level × 0.5` DPS (linear) | 1 → 11 DPS at Lv 20 | Unlimited |
 
 ### Health & Death Line Economy
-- **Weapon kills**: Dead squares earn `max(1, round(maxHealth × 2))` dollars at the death line
-- **Death line kills**: Live squares take death line damage; if killed there, earn only **$1**
-  regardless of HP. This makes the death line a safety net, not a money farm.
+- **Death line deals initial hit + continuous DPS**: On first contact (`OnTriggerEnter2D`),
+  live squares take one full DPS-value hit (e.g. 1 damage at level 0). If they survive,
+  `OnTriggerStay2D` applies continuous DPS each frame. 1-HP squares die instantly on
+  contact; high-HP pinatas visibly linger. Safety cleanup destroys any square below Y=-8.
+- **Weapon kills**: Dead squares earn `max(1, round(maxHealth × 2))` dollars when hitting
+  the death line (collected immediately via `OnTriggerEnter2D` with confetti). Dead squares
+  killed by weapons while already on the death line are also collected via `OnTriggerStay2D`.
+- **Death line kills**: Live squares killed by the death line earn only **$1** (no confetti).
+  This makes the death line a safety net, not a money farm.
 - `PinataSquare` tracks `_maxHealth` (set at spawn) for money calculation.
 
 ### Apply Chain (Wall Size)
@@ -396,7 +402,7 @@ subsequent gameplay.
 
 - **Starting money**: $15
 - **Income**: `max(1, round(maxHealth × 2))` per weapon-killed dead square reaching the
-  death line; $1 for death-line-killed squares (`PinataSquare.OnTriggerEnter2D`)
+  death line; $1 for death-line-killed squares (`PinataSquare.OnTriggerStay2D`)
 - **Pricing formula**: `baseCost × 1.6^purchaseCount` (rounded to int)
 - **Saw base cost**: $8 → $13 → $20 → $33 → $52 ... (independent counter)
 - **Laser base cost**: $40 → $64 → $102 → $164 ... (independent counter)

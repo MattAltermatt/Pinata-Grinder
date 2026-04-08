@@ -35,6 +35,13 @@ public class PinataSquare : MonoBehaviour
         _allSquares.Remove(this);
     }
 
+    void Update()
+    {
+        // Safety cleanup: destroy squares that fall well below the screen
+        if (transform.position.y < -8f)
+            Destroy(gameObject);
+    }
+
     public void Init(Pinata parent, float health, int col, int row)
     {
         _pinata = parent;
@@ -70,26 +77,49 @@ public class PinataSquare : MonoBehaviour
     {
         if (!other.TryGetComponent<DeathLine>(out _)) return;
 
-        bool wasAlreadyDead = _isDead;
-
-        // Live squares take death line damage (may kill them)
-        if (!_isDead && GlobalUpgrades.Instance != null)
-            TakeDamage(GlobalUpgrades.Instance.DeathLineDamage);
-
         if (_isDead)
         {
-            // Weapon kills get confetti and full value; death line kills get $1 and no confetti
-            if (wasAlreadyDead)
-            {
-                ConfettiBurst.Spawn(transform.position, _sr.color);
-                Economy.Instance?.Earn(Mathf.Max(1, Mathf.RoundToInt(_maxHealth * 2f)));
-            }
-            else
-            {
-                Economy.Instance?.Earn(1);
-            }
+            CollectWeaponKill();
+            return;
         }
 
+        // Live squares take an initial hit on contact, then continuous DPS via Stay
+        float dps = GlobalUpgrades.Instance != null
+            ? GlobalUpgrades.Instance.DeathLineDamage
+            : 1f;
+        TakeDamage(dps);
+        if (_isDead) { CollectDeathLineKill(); return; }
+    }
+
+    void OnTriggerStay2D(Collider2D other)
+    {
+        if (!other.TryGetComponent<DeathLine>(out _)) return;
+
+        // Dead squares on the line (killed by weapon while sitting here) — collect them
+        if (_isDead)
+        {
+            CollectWeaponKill();
+            return;
+        }
+
+        // Live squares take continuous DPS while on the death line
+        float dps = GlobalUpgrades.Instance != null
+            ? GlobalUpgrades.Instance.DeathLineDamage
+            : 1f;
+        TakeDamage(dps * Time.deltaTime);
+        if (_isDead) { CollectDeathLineKill(); return; }
+    }
+
+    void CollectWeaponKill()
+    {
+        ConfettiBurst.Spawn(transform.position, _sr.color);
+        Economy.Instance?.Earn(Mathf.Max(1, Mathf.RoundToInt(_maxHealth * 2f)));
+        Destroy(gameObject);
+    }
+
+    void CollectDeathLineKill()
+    {
+        Economy.Instance?.Earn(1);
         Destroy(gameObject);
     }
 }
