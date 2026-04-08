@@ -6,25 +6,24 @@ using UnityEngine;
 /// Pricing follows the same exponential formula as the rest of the economy.
 /// Spawner rate and oscillation rate are capped at 20 levels.
 /// Wall size is capped at the player's screen width minus a UI margin.
-/// In the Unity Editor, all upgrades are free (debug mode).
 /// </summary>
 public class GlobalUpgrades : MonoBehaviour
 {
     public static GlobalUpgrades Instance { get; private set; }
 
-    private const int BaseCost = 10;
+    private const int BaseCost = 8;
     private const float CostMultiplier = 1.6f;
     private const int MaxSpawnerLevel = 20;
     private const int MaxOscillationLevel = 20;
     private const float MinFieldWidth = 1.5f;
     private const float WallStep = 0.5f;
 
-    // Spawner rate: 10s at level 0, 0.1s at level 20
-    private const float SpawnIntervalStart = 10f;
+    // Spawner rate: 7s at level 0, 0.1s at level 20
+    private const float SpawnIntervalStart = 7f;
     private const float SpawnIntervalEnd = 0.1f;
 
-    // Oscillation: period 30s at level 0, 1s at level 20
-    private const float OscPeriodStart = 30f;
+    // Oscillation: period 20s at level 0, 1s at level 20
+    private const float OscPeriodStart = 20f;
     private const float OscPeriodEnd = 1f;
 
     private int _wallLevel;
@@ -55,6 +54,12 @@ public class GlobalUpgrades : MonoBehaviour
     {
         _spawner = GetComponent<SquareSpawner>();
         ApplyAll();
+    }
+
+    void EnsureSpawner()
+    {
+        if (_spawner == null)
+            _spawner = GetComponent<SquareSpawner>();
     }
 
     // ── Pricing ──
@@ -167,8 +172,7 @@ public class GlobalUpgrades : MonoBehaviour
     void ApplyPinataSize()
     {
         if (_spawner == null) return;
-        GetGridSize(_pinataLevel, out int w, out int h);
-        _spawner.SetGridSize(w, h);
+        _spawner.SetSquareCount(GetSquareCount(_pinataLevel));
     }
 
     void ApplySpawnerRate()
@@ -199,14 +203,13 @@ public class GlobalUpgrades : MonoBehaviour
 
     bool NextPinataFits()
     {
-        int nextLevel = _pinataLevel + 1;
-        GetGridSize(nextLevel, out int w, out int h);
+        int nextCount = GetSquareCount(_pinataLevel + 1);
         float squareSize = _spawner != null ? _spawner.SquareSize : 0.175f;
-        float pinataWidth = w * squareSize;
-        float pinataHeight = h * squareSize;
+        // Estimate worst-case bounding box as a square arrangement
+        float side = Mathf.Ceil(Mathf.Sqrt(nextCount)) * squareSize;
         float currentFieldWidth = CalculateFieldWidth(_wallLevel);
         float fieldHeight = GameField.Instance != null ? GameField.Instance.CameraHalfHeight * 2f : 10f;
-        return pinataWidth < currentFieldWidth && pinataHeight < fieldHeight;
+        return side < currentFieldWidth && side < fieldHeight;
     }
 
     // ── Calculation helpers (public for UI display) ──
@@ -222,6 +225,11 @@ public class GlobalUpgrades : MonoBehaviour
         var cam = Camera.main;
         if (cam == null) return 15f;
         return cam.aspect * GameField.Instance.CameraHalfHeight * 2f - 1.5f;
+    }
+
+    public static int GetSquareCount(int level)
+    {
+        return level + 1;
     }
 
     public static void GetGridSize(int level, out int w, out int h)
@@ -270,4 +278,33 @@ public class GlobalUpgrades : MonoBehaviour
 
     /// <summary>Current death line damage value for the active level.</summary>
     public float DeathLineDamage => CalculateDeathLineDamage(_deathLineDamageLevel);
+
+    public GlobalUpgradesSaveData CaptureState()
+    {
+        return new GlobalUpgradesSaveData
+        {
+            wallLevel = _wallLevel,
+            pinataLevel = _pinataLevel,
+            spawnerLevel = _spawnerLevel,
+            oscillationLevel = _oscillationLevel,
+            healthLevel = _healthLevel,
+            deathLineDamageLevel = _deathLineDamageLevel
+        };
+    }
+
+    public void RestoreState(GlobalUpgradesSaveData data)
+    {
+        if (data == null) return;
+        _wallLevel = data.wallLevel;
+        _pinataLevel = data.pinataLevel;
+        _spawnerLevel = data.spawnerLevel;
+        _oscillationLevel = data.oscillationLevel;
+        _healthLevel = data.healthLevel;
+        _deathLineDamageLevel = data.deathLineDamageLevel;
+
+        // Apply immediately if spawner is already available (Start may have run)
+        EnsureSpawner();
+        if (_spawner != null)
+            ApplyAll();
+    }
 }

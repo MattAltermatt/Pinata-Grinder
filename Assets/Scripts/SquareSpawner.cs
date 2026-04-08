@@ -17,6 +17,7 @@ public class SquareSpawner : MonoBehaviour
     [SerializeField] private float maxSpawnAngle   = 35f;
     [SerializeField] private int   gridWidth       = 5;
     [SerializeField] private int   gridHeight      = 5;
+    [SerializeField] private int   squareCount     = 0;
     [SerializeField] private float squareHealth    = 1f;
     [SerializeField] private float fieldWidth      = 6f;
     [SerializeField] private float oscillateSpeed  = 1f;
@@ -26,6 +27,7 @@ public class SquareSpawner : MonoBehaviour
 
     public float SquareSize => squareSize;
     public void SetGridSize(int w, int h) { gridWidth = w; gridHeight = h; }
+    public void SetSquareCount(int count) { squareCount = count; }
     public void SetSpawnInterval(float interval) { spawnInterval = interval; }
     public void SetOscillateSpeed(float speed) { oscillateSpeed = speed; }
     public void SetFieldWidth(float width) { fieldWidth = width; }
@@ -45,7 +47,7 @@ public class SquareSpawner : MonoBehaviour
         if (_timer < spawnInterval) return;
         _timer = 0f;
 
-        int targetCount = gridWidth * gridHeight;
+        int targetCount = squareCount > 0 ? squareCount : gridWidth * gridHeight;
         var shape = GenerateShape(targetCount);
 
         // Compute bounding box for oscillation and overlap check

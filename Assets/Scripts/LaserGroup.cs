@@ -20,7 +20,7 @@ public class LaserGroup : Weapon
 
     private const float StartAimSpeed = 30f;
     private const float MaxAimSpeed   = 360f;
-    private const float StartRange    = 1f;
+    private const float StartRange    = 1.5f;
     private const float StartDamage   = 1f;
     private const float StartCooldown = 3f;
     private const float MinCooldown   = 0.1f;
@@ -162,6 +162,23 @@ public class LaserGroup : Weapon
             laser.SetStopper(_stopper);
 
         _lasers.Add(laser);
+    }
+
+    // ── Restore from save ──
+
+    public void RestoreUpgrades(int[] levels, int totalInvestment)
+    {
+        if (levels == null) return;
+        _upgrades.RestoreState(levels, totalInvestment);
+
+        // Init() already added 1 laser; add extras for the saved lasers level
+        for (int i = 0; i < levels[SlotLasers]; i++)
+            AddLaser();
+
+        ApplyAimSpeed();
+        ApplyRange();
+        ApplyDamage();
+        ApplyCooldown();
     }
 
     // ── Cleanup ──

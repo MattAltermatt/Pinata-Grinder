@@ -34,7 +34,8 @@ public class DebugMode : MonoBehaviour
     {
         _paused = !_paused;
         Time.timeScale = _paused ? 0f : 1f;
-        Debug.Log(_paused ? "[Debug] Paused" : "[Debug] Resumed");
+        Weapon.IsDebugMode = _paused;
+        Debug.Log(_paused ? "[Debug] Paused (debug mode ON)" : "[Debug] Resumed (debug mode OFF)");
     }
 
     void TryKillSquare()

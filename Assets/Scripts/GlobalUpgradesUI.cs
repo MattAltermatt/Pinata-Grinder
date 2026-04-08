@@ -414,8 +414,8 @@ public class GlobalUpgradesUI : MonoBehaviour
 
     string PinataDesc()
     {
-        GlobalUpgrades.GetGridSize(GlobalUpgrades.Instance.PinataLevel, out int w, out int h);
-        return "Grid: " + w + "x" + h;
+        int count = GlobalUpgrades.GetSquareCount(GlobalUpgrades.Instance.PinataLevel);
+        return "Squares: " + count;
     }
 
     string SpawnerDesc()

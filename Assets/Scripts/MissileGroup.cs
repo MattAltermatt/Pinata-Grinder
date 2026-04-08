@@ -180,6 +180,24 @@ public class MissileGroup : Weapon
         _launchers.Add(launcher);
     }
 
+    // ── Restore from save ──
+
+    public void RestoreUpgrades(int[] levels, int totalInvestment)
+    {
+        if (levels == null) return;
+        _upgrades.RestoreState(levels, totalInvestment);
+
+        // Init() already added 1 launcher; add extras for the saved launchers level
+        for (int i = 0; i < levels[SlotLaunchers]; i++)
+            AddLauncher();
+
+        ApplyFireRate();
+        ApplyDamage();
+        ApplyBlastRadius();
+        ApplySpeed();
+        ApplyHoming();
+    }
+
     // ── Cleanup ──
 
     void OnDestroy()

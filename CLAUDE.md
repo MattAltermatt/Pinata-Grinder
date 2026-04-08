@@ -19,12 +19,13 @@ The game uses a pure-code scene setup: the only objects saved to the scene file 
 death line, stoppers, weapons) and UI are created at runtime in `GameField.Awake()`.
 Composite pinatas are instantiated at runtime by `SquareSpawner`.
 
-**Economy system**: The player starts with $1000 and earns $1 per dead square that reaches
-the death line. Money is spent on stoppers and weapons via the shop UI. Prices grow
-exponentially using the formula `baseCost × 1.6^purchaseCount` with independent counters
-per weapon type. The `Economy` singleton on GameManager tracks money, purchase counts,
-and sell refunds, firing `OnMoneyChanged` events for UI. Weapons can be sold for their
-previous purchase cost (no penalty).
+**Economy system**: The player starts with $15 and earns `max(1, round(maxHealth × 2))`
+per weapon-killed dead square that reaches the death line ($1 for death-line kills).
+Money is spent on stoppers and weapons via the shop UI. Prices grow exponentially using
+the formula `baseCost × 1.6^purchaseCount` with independent counters per weapon type.
+The `Economy` singleton on GameManager tracks money, purchase counts, and sell refunds,
+firing `OnMoneyChanged` events for UI. Weapons can be sold for their total investment
+(base cost + all upgrade costs).
 
 **Composite pinatas** use a compound collider pattern: a parent GameObject holds a single
 `Rigidbody2D` + `Pinata` component, with child GameObjects for each square (each has
@@ -65,10 +66,10 @@ new stoppers don't overlap existing ones.
 
 | Script | Purpose |
 |---|---|
-| `GameField.cs` | Configures camera, creates walls (with visuals), death line, initial stopper; initializes Economy, StopperFactory, GlobalUpgrades, and UI; provides procedural sprite generators; walls rebuildable via `RebuildWalls()` |
+| `GameField.cs` | Configures camera, creates walls (with visuals), death line, initial stopper; initializes Economy, StopperFactory, SaveManager, GlobalUpgrades, and UI; loads save on startup; provides procedural sprite generators; walls rebuildable via `RebuildWalls()` |
 | `SquareSpawner.cs` | Spawns composite pinatas as random connected shapes (center-biased growth algorithm); oscillates spawn position horizontally; grid size, interval, oscillation, and field width settable at runtime via public setters |
-| `GlobalUpgrades.cs` | Singleton managing 4 global upgrade levels (wall size, pinata size, spawner rate, oscillation rate); applies effects to GameField, SquareSpawner, StopperFactory |
-| `GlobalUpgradesUI.cs` | "Upgrades" button below Buy Stopper; full-screen overlay with 4 upgrade rows, cost labels, descriptions, and "SOLD OUT" state for maxed upgrades |
+| `GlobalUpgrades.cs` | Singleton managing 6 global upgrade levels (wall size, pinata size, spawner rate, oscillation, pinata HP, death line damage); applies effects to GameField, SquareSpawner, StopperFactory; `CaptureState`/`RestoreState` for save system |
+| `GlobalUpgradesUI.cs` | "Upgrades" button below Buy Stopper; full-screen overlay with 6 upgrade rows, cost labels, descriptions, and "SOLD OUT" state for maxed upgrades |
 | `Pinata.cs` | Parent controller for composite pinatas; manages child square list and detachment |
 | `PinataSquare.cs` | Individual square within a pinata; tracks health, takes damage, darkens/shrinks on death; exposes `IsDead` property; dead squares earn $1 and spawn confetti at death line |
 | `Weapon.cs` | Abstract base class for weapon groups; defines `Init`, `Type`, `DisplayName`, `Upgrades`, `UpgradeSlotCount`, `GetSlotInfo`, `TryUpgrade`; `WeaponType` enum: None, Saw, Laser, Missile |
@@ -83,8 +84,10 @@ new stoppers don't overlap existing ones.
 | `Missile.cs` | Fire-and-forget AOE projectile; homing, proximity detonation, smoke trail, explosion VFX; self-destructs after 10s |
 | `Stopper.cs` | Stopper component; tracks `Weapon` reference (polymorphic), opens `StopperMenu` on click |
 | `Draggable.cs` | Click-and-drag via Input System; clamps to configurable bounds; fires `OnClicked` event for taps (tracks `_hasDragged` flag, threshold 0.35 units) |
-| `Economy.cs` | Singleton tracking money ($10 start), independent purchase counts per weapon type, exponential pricing (`base × 1.6^n`), sell refunds = TotalInvestment; fires `OnMoneyChanged` event |
-| `EconomyUI.cs` | Creates Canvas (Screen Space Overlay) + EventSystem; money label (top-center), buy-stopper button (top-left with icon and cost); uses `FindClearSpawnPos` for placement |
+| `Economy.cs` | Singleton tracking money ($15 start), independent purchase counts per weapon type, exponential pricing (`base × 1.6^n`), sell refunds = TotalInvestment; fires `OnMoneyChanged` event; `CaptureState`/`RestoreState` for save system |
+| `EconomyUI.cs` | Creates Canvas (Screen Space Overlay) + EventSystem; money label (top-center), buy-stopper button (top-left), save button (bottom-left) with "Saved!" indicator; uses `FindClearSpawnPos` for placement |
+| `SaveData.cs` | `[Serializable]` data classes for JSON save/load: `SaveData`, `GlobalUpgradesSaveData`, `StopperSaveData` |
+| `SaveManager.cs` | Singleton handling save/load to `Application.persistentDataPath/save.json`; auto-saves every 5 minutes; fires `OnSaved` event for UI indicator; WebGL IndexedDB flush |
 | `StopperMenu.cs` | Popup panel near clicked stopper; no weapon: shows buy-saw, buy-laser, and sell-stopper rows; has weapon: shows full-screen upgrade overlay with per-upgrade buttons + sell |
 | `StopperFactory.cs` | Plain C# class (not MonoBehaviour); `SpawnStopper`, `AttachSaw` (creates SawGroup), `AttachLaser` (creates LaserGroup), `DetachWeapon`, `DestroyStopper`, `FindClearSpawnPos` |
 | `ConfettiBurst.cs` | Spawns a one-shot `ParticleSystem` burst (15 particles), tinted to match the destroyed square |
@@ -99,6 +102,8 @@ GameManager           — GameField + SquareSpawner + Economy components
 EconomyCanvas         — Canvas (Screen Space Overlay) + CanvasScaler + GraphicRaycaster
   MoneyLabel          — UI.Text, top-center, green, shows "$10"
   BuyStopperButton    — UI.Button + Image, top-left, stopper icon + cost label
+  SaveButton          — UI.Button + Image, bottom-left, floppy disk icon
+  SavedIndicator      — UI.Text, bottom-left above save button, fades after save
   StopperMenu         — popup panel (hidden by default), buy-saw row or "Saw equipped"
 EventSystem           — EventSystem + InputSystemUIInputModule (required for UI clicks)
 WallLeft              — BoxCollider2D (Wall layer), off-screen
@@ -216,7 +221,7 @@ money invested (base cost + all upgrade costs). Sell price = `TotalInvestment`.
 
 ### Laser (via LaserGroup)
 
-- Starts with 1 laser at reduced stats (aim speed 30 deg/s, range 1, DPS 1)
+- Starts with 1 laser at reduced stats (aim speed 30 deg/s, range 1.5, DPS 1)
 - **Gradual rotation**: uses `Quaternion.RotateTowards` instead of instant snap;
   only fires when within 15° of target (aim error threshold)
 - **Angular targeting**: `AcquireTarget()` scores by distance + angular proximity
@@ -252,8 +257,8 @@ When clicking a stopper with a weapon, StopperMenu displays a radial dial:
 - N upgrade buttons arranged in a ring (radius 130px, each 85×85px)
 - Each button shows: icon, name, level indicator, cost
 - Colors: affordable=dark blue, can't afford=red, maxed=gold
-- In editor: all upgrade buttons always interactable, free, and ignore max level caps
-  (`Weapon.IsDebugMode` static property, `#if UNITY_EDITOR`)
+- Debug mode (spacebar in editor): upgrade buttons become free and ignore max level caps
+  (`Weapon.IsDebugMode` static property, toggled by `DebugMode` component)
 
 **Important**: Private fields on runtime-created `MonoBehaviour`s are lost during domain
 reload. Use `[SerializeField, HideInInspector]` for fields that must survive recompilation
@@ -264,7 +269,7 @@ in play mode, or use `GetComponent<>()` directly in callbacks instead of caching
 Pinatas are composite random-shaped groups of squares that fall as one rigid body.
 Shape is generated via a center-biased growth algorithm (`GenerateShape` / `WeightedPick`
 in SquareSpawner): starts at (0,0), expands outward preferring cells closer to center,
-guaranteed connected. Total square count = `gridWidth × gridHeight` from the upgrade level.
+guaranteed connected. Total square count = `level + 1` (one square per upgrade level).
 
 - **Spawning**: `SquareSpawner` oscillates horizontally above the screen; creates a parent
   `Pinata` GO with `Rigidbody2D`, then child squares in the generated shape
@@ -287,7 +292,7 @@ guaranteed connected. Total square count = `gridWidth × gridHeight` from the up
 ## Global Upgrades System
 
 `GlobalUpgrades` singleton on GameManager manages 6 upgrade types, each with independent
-level counters and exponential pricing (`$10 × 1.6^level`). Money is deducted via
+level counters and exponential pricing (`$8 × 1.6^level`). Money is deducted via
 `Economy.Instance.Earn(-cost)`. Upgrade effects are applied immediately and affect
 subsequent gameplay.
 
@@ -296,9 +301,9 @@ subsequent gameplay.
 | Parameter | Starting Value | Was |
 |---|---|---|
 | Field width | 1.5 units (3× stopper diameter) | 6 |
-| Pinata grid | 1×1 (single square) | 5×5 |
-| Spawn interval | 10 seconds | 1 |
-| Oscillation period | 30 seconds | ~6.28s |
+| Pinata count | 1 square | 25 |
+| Spawn interval | 7 seconds | 1 |
+| Oscillation period | 20 seconds | ~6.28s |
 | Square health | 1 HP | 1 |
 | Death line damage | 1 | N/A (was instant destroy) |
 
@@ -307,9 +312,9 @@ subsequent gameplay.
 | Upgrade | Formula | Range | Max Level |
 |---|---|---|---|
 | Wall Size | `1.5 + level × 0.5`, clamped at screen width − 1.5 | 1.5 → screen edge | When screen fills |
-| Pinata Size | `n = level/2 + 1; w = even ? n : n+1; h = n` | 1×1 → 2×1 → 2×2 → ... | Unlimited |
-| Spawner Rate | `10 × (0.1/10)^(level/20)` | 10s → 0.1s | 20 |
-| Oscillation | `period = 30 × (1/30)^(level/20)` | 30s → 1s | 20 |
+| Pinata Size | `level + 1` squares | 1 → 2 → 3 → ... | Unlimited |
+| Spawner Rate | `7 × (0.1/7)^(level/20)` | 7s → 0.1s | 20 |
+| Oscillation | `period = 20 × (1/20)^(level/20)` | 20s → 1s | 20 |
 | Pinata HP | `1 + 0.3 × level^1.5` (accelerating) | 1 → ~28 at Lv 20 | Unlimited |
 | Death Line Dmg | `1 + level × 0.5` (linear) | 1 → 11 at Lv 20 | Unlimited |
 
@@ -338,7 +343,7 @@ subsequent gameplay.
 - `stopperRadius` (0.25) — world radius of each stopper circle
 
 **SquareSpawner** (serialized defaults overridden by GlobalUpgrades at runtime):
-- `spawnInterval` (1) — seconds between drops (overridden to 10 at start)
+- `spawnInterval` (1) — seconds between drops (overridden to 7 at start)
 - `squareSize` (0.175) — world-unit side length of each square
 - `spawnY` (7) — Y position of the spawn point (above camera top at Y=5)
 - `gravityScale` (0.4) — Rigidbody2D gravity multiplier
@@ -361,7 +366,7 @@ subsequent gameplay.
 **Laser** (defaults set by LaserGroup upgrades):
 - `damagePerSecond` — starts 1, upgradeable via `1 + level × 0.5`
 - `cooldownDuration` (3) — seconds of downtime after killing a target (upgradeable to 0.1s)
-- `maxRange` — starts 1, upgradeable to full field width over 20 levels
+- `maxRange` — starts 1.5, upgradeable to full field width over 20 levels
 - `rotationSpeed` — starts 30 deg/s, upgradeable to 360 deg/s
 
 ## Confetti System
@@ -384,7 +389,7 @@ subsequent gameplay.
 
 `Economy` is a singleton on GameManager that tracks player money and purchase history.
 
-- **Starting money**: $10
+- **Starting money**: $15
 - **Income**: `max(1, round(maxHealth × 2))` per weapon-killed dead square reaching the
   death line; $1 for death-line-killed squares (`PinataSquare.OnTriggerEnter2D`)
 - **Pricing formula**: `baseCost × 1.6^purchaseCount` (rounded to int)
@@ -416,7 +421,29 @@ All UI is built procedurally in `EconomyUI.Awake()` — no prefabs or editor-pla
   (matching GlobalUpgrades style) with weapon name, per-upgrade rows (icon + name +
   description + buy button or SOLD OUT), and sell button showing total investment refund.
   Buy panel hides on click outside; upgrade overlay hides via close button (X).
+- **Save button**: Bottom-left (20px inset), 80×80, floppy disk icon. Shows "Saved!"
+  text that fades over 1.5s on manual or auto save.
 - **Font**: `Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf")` (Unity built-in)
+
+## Save System
+
+`SaveManager` singleton on GameManager handles persistence to `Application.persistentDataPath/save.json`
+via `JsonUtility`. Auto-saves every 5 minutes; manual save via bottom-left button.
+
+**Saved state**: Economy (money + 4 purchase counters), GlobalUpgrades (6 level ints),
+and per-stopper data (position, weapon type, upgrade levels, total investment, saw direction).
+Pinatas in flight are not saved.
+
+**Load flow**: `GameField.Awake()` creates `SaveManager`, calls `Load()`, and branches:
+- If save exists: restores Economy, spawns stoppers with weapons, restores GlobalUpgrades
+- If no save: fresh start with single stopper at (0, 1)
+
+`GlobalUpgrades.RestoreState()` eagerly gets the spawner reference and calls `ApplyAll()`
+immediately, ensuring wall size / spawn rate / pinata count reflect saved levels before
+the first frame renders.
+
+**WebGL**: After writing, calls `_JS_FileSystem_Sync()` to flush Emscripten's virtual
+filesystem to IndexedDB for cross-session persistence.
 
 ## Coding Standards
 

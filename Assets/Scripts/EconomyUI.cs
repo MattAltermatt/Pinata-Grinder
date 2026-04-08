@@ -16,6 +16,8 @@ public class EconomyUI : MonoBehaviour
     private Text _stopperCostLabel;
     private Button _buyStopperBtn;
     private Image _buyStopperBg;
+    private Text _savedIndicator;
+    private float _savedFadeTimer;
 
     void Awake()
     {
@@ -24,18 +26,42 @@ public class EconomyUI : MonoBehaviour
         BuildCanvas();
         BuildMoneyLabel();
         BuildBuyStopperButton();
+        BuildSaveButton();
+        BuildSavedIndicator();
     }
 
     void Start()
     {
         Economy.Instance.OnMoneyChanged += RefreshUI;
         RefreshUI(Economy.Instance.Money);
+
+        if (SaveManager.Instance != null)
+            SaveManager.Instance.OnSaved += ShowSavedIndicator;
     }
 
     void OnDestroy()
     {
         if (Economy.Instance != null)
             Economy.Instance.OnMoneyChanged -= RefreshUI;
+        if (SaveManager.Instance != null)
+            SaveManager.Instance.OnSaved -= ShowSavedIndicator;
+    }
+
+    void Update()
+    {
+        if (_savedFadeTimer > 0f)
+        {
+            _savedFadeTimer -= Time.deltaTime;
+            float alpha = Mathf.Clamp01(_savedFadeTimer / 0.5f); // fade out over last 0.5s
+            if (_savedIndicator != null)
+            {
+                var c = _savedIndicator.color;
+                c.a = alpha;
+                _savedIndicator.color = c;
+            }
+            if (_savedFadeTimer <= 0f && _savedIndicator != null)
+                _savedIndicator.gameObject.SetActive(false);
+        }
     }
 
     void BuildCanvas()
@@ -141,6 +167,93 @@ public class EconomyUI : MonoBehaviour
         _stopperCostLabel.alignment = TextAnchor.MiddleCenter;
         _stopperCostLabel.color = Color.white;
         _stopperCostLabel.raycastTarget = false;
+    }
+
+    void BuildSaveButton()
+    {
+        var go = new GameObject("SaveButton");
+        go.transform.SetParent(Canvas.transform, false);
+
+        var rect = go.AddComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0f, 0f);
+        rect.anchorMax = new Vector2(0f, 0f);
+        rect.pivot = new Vector2(0f, 0f);
+        rect.anchoredPosition = new Vector2(20f, 20f);
+        rect.sizeDelta = new Vector2(80f, 80f);
+
+        var bg = go.AddComponent<Image>();
+        bg.color = new Color(0.15f, 0.15f, 0.2f, 0.85f);
+
+        var btn = go.AddComponent<Button>();
+        btn.targetGraphic = bg;
+        btn.onClick.AddListener(OnSaveClicked);
+
+        // Floppy disk icon (simple square with notch)
+        var iconGo = new GameObject("SaveIcon");
+        iconGo.transform.SetParent(go.transform, false);
+
+        var iconRect = iconGo.AddComponent<RectTransform>();
+        iconRect.anchorMin = new Vector2(0.15f, 0.15f);
+        iconRect.anchorMax = new Vector2(0.85f, 0.85f);
+        iconRect.offsetMin = Vector2.zero;
+        iconRect.offsetMax = Vector2.zero;
+
+        var iconImg = iconGo.AddComponent<Image>();
+        iconImg.sprite = GameField.WhiteSprite();
+        iconImg.color = new Color(0.5f, 0.7f, 1f);
+        iconImg.raycastTarget = false;
+
+        // Label slot (small dark rectangle at bottom of floppy)
+        var labelGo = new GameObject("DiskLabel");
+        labelGo.transform.SetParent(iconGo.transform, false);
+
+        var labelRect = labelGo.AddComponent<RectTransform>();
+        labelRect.anchorMin = new Vector2(0.2f, 0.05f);
+        labelRect.anchorMax = new Vector2(0.8f, 0.4f);
+        labelRect.offsetMin = Vector2.zero;
+        labelRect.offsetMax = Vector2.zero;
+
+        var labelImg = labelGo.AddComponent<Image>();
+        labelImg.sprite = GameField.WhiteSprite();
+        labelImg.color = new Color(0.2f, 0.2f, 0.3f);
+        labelImg.raycastTarget = false;
+    }
+
+    void BuildSavedIndicator()
+    {
+        var go = new GameObject("SavedIndicator");
+        go.transform.SetParent(Canvas.transform, false);
+
+        var rect = go.AddComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0f, 0f);
+        rect.anchorMax = new Vector2(0f, 0f);
+        rect.pivot = new Vector2(0f, 0f);
+        rect.anchoredPosition = new Vector2(20f, 110f);
+        rect.sizeDelta = new Vector2(160f, 40f);
+
+        _savedIndicator = go.AddComponent<Text>();
+        _savedIndicator.text = "Saved!";
+        _savedIndicator.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        _savedIndicator.fontSize = 28;
+        _savedIndicator.fontStyle = FontStyle.Bold;
+        _savedIndicator.alignment = TextAnchor.MiddleCenter;
+        _savedIndicator.color = new Color(0.5f, 1f, 0.5f, 0f);
+
+        go.SetActive(false);
+    }
+
+    void OnSaveClicked()
+    {
+        if (SaveManager.Instance != null)
+            SaveManager.Instance.Save();
+    }
+
+    void ShowSavedIndicator()
+    {
+        if (_savedIndicator == null) return;
+        _savedIndicator.gameObject.SetActive(true);
+        _savedIndicator.color = new Color(0.5f, 1f, 0.5f, 1f);
+        _savedFadeTimer = 1.5f;
     }
 
     void OnBuyStopperClicked()

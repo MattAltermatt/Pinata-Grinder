@@ -36,4 +36,16 @@ public class WeaponUpgradeData
         _levels[slot]++;
         _totalInvestment += cost;
     }
+
+    public int[] GetLevels()
+    {
+        return (int[])_levels.Clone();
+    }
+
+    public void RestoreState(int[] levels, int totalInvestment)
+    {
+        for (int i = 0; i < _levels.Length && i < levels.Length; i++)
+            _levels[i] = levels[i];
+        _totalInvestment = totalInvestment;
+    }
 }

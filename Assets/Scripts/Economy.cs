@@ -9,7 +9,7 @@ public class Economy : MonoBehaviour
 {
     public static Economy Instance { get; private set; }
 
-    [SerializeField] private int startingMoney = 10;
+    [SerializeField] private int startingMoney = 15;
     [SerializeField] private int sawBaseCost = 8;
     [SerializeField] private int stopperBaseCost = 20;
     [SerializeField] private int laserBaseCost = 40;
@@ -136,6 +136,25 @@ public class Economy : MonoBehaviour
     int Cost(int baseCost, int count)
     {
         return Mathf.RoundToInt(baseCost * Mathf.Pow(costMultiplier, count));
+    }
+
+    public void CaptureState(out int money, out int saws, out int stoppers, out int lasers, out int missiles)
+    {
+        money = _money;
+        saws = _sawsPurchased;
+        stoppers = _stoppersPurchased;
+        lasers = _lasersPurchased;
+        missiles = _missilesPurchased;
+    }
+
+    public void RestoreState(int money, int saws, int stoppers, int lasers, int missiles)
+    {
+        _money = money;
+        _sawsPurchased = saws;
+        _stoppersPurchased = stoppers;
+        _lasersPurchased = lasers;
+        _missilesPurchased = missiles;
+        OnMoneyChanged?.Invoke(_money);
     }
 
 #if UNITY_EDITOR

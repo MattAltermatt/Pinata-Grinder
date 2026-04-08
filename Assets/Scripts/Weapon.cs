@@ -23,17 +23,8 @@ public abstract class Weapon : MonoBehaviour
     public virtual void ToggleDirection() { }
 
     /// <summary>
-    /// In editor, upgrades are free and ignore max level caps.
+    /// When true, upgrades are free and ignore max level caps.
+    /// Toggled at runtime by DebugMode (spacebar in editor).
     /// </summary>
-    public static bool IsDebugMode
-    {
-        get
-        {
-#if UNITY_EDITOR
-            return true;
-#else
-            return false;
-#endif
-        }
-    }
+    public static bool IsDebugMode { get; set; }
 }

@@ -45,15 +45,56 @@ public class GameField : MonoBehaviour
         gameObject.AddComponent<Economy>();
         StopperFactory.Init(fieldWidth, cameraHalfHeight, stopperRadius);
 
-        // Start with a single stopper in the center (no saw — player buys it)
-        StopperFactory.Instance.SpawnStopper(new Vector2(0f, 1f));
+        // Save system — load existing progress or start fresh
+        gameObject.AddComponent<SaveManager>();
+        var saveData = SaveManager.Instance.Load();
+
+        if (saveData != null)
+        {
+            // Restore economy state (purchase counts, money)
+            Economy.Instance.RestoreState(
+                saveData.money, saveData.sawsPurchased,
+                saveData.stoppersPurchased, saveData.lasersPurchased,
+                saveData.missilesPurchased);
+
+            // Restore stoppers and their weapons
+            foreach (var sd in saveData.stoppers)
+            {
+                var stopper = StopperFactory.Instance.SpawnStopper(
+                    new Vector2(sd.posX, sd.posY));
+
+                if (sd.weaponType == (int)WeaponType.Saw)
+                {
+                    var group = StopperFactory.Instance.AttachSaw(stopper);
+                    group.RestoreUpgrades(sd.upgradeLevels, sd.totalInvestment,
+                        sd.directionMultiplier);
+                }
+                else if (sd.weaponType == (int)WeaponType.Laser)
+                {
+                    var group = StopperFactory.Instance.AttachLaser(stopper);
+                    group.RestoreUpgrades(sd.upgradeLevels, sd.totalInvestment);
+                }
+                else if (sd.weaponType == (int)WeaponType.Missile)
+                {
+                    var group = StopperFactory.Instance.AttachMissile(stopper);
+                    group.RestoreUpgrades(sd.upgradeLevels, sd.totalInvestment);
+                }
+            }
+        }
+        else
+        {
+            // Fresh start: single stopper in the center, no weapon
+            StopperFactory.Instance.SpawnStopper(new Vector2(0f, 1f));
+        }
 
         // UI (must come after Economy is initialized)
         gameObject.AddComponent<EconomyUI>();
         gameObject.AddComponent<StopperMenu>();
 
-        // Global upgrades (applies initial level-0 values, rebuilds walls to starting size)
+        // Global upgrades — Awake() sets Instance, Start() calls ApplyAll()
         gameObject.AddComponent<GlobalUpgrades>();
+        if (saveData != null)
+            GlobalUpgrades.Instance.RestoreState(saveData.globalUpgrades);
         gameObject.AddComponent<GlobalUpgradesUI>();
 
 #if UNITY_EDITOR

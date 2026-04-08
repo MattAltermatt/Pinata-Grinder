@@ -184,6 +184,26 @@ public class SawGroup : Weapon
             _blades[i].SetAngle(i * (360f / count));
     }
 
+    // ── Restore from save ──
+
+    public void RestoreUpgrades(int[] levels, int totalInvestment, int directionMultiplier)
+    {
+        if (levels == null) return;
+        _upgrades.RestoreState(levels, totalInvestment);
+
+        // Init() already added 1 blade; add extras for the saved blades level
+        for (int i = 0; i < levels[SlotBlades]; i++)
+            AddBlade();
+
+        ApplySpeed();
+        ApplySize();
+        ApplyTorque();
+        ApplyDamage();
+
+        if (directionMultiplier == -1)
+            ToggleDirection();
+    }
+
     // ── Cleanup ──
 
     void OnDestroy()
