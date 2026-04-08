@@ -54,8 +54,8 @@ public class Missile : MonoBehaviour
         var main = ps.main;
         main.loop = true;
         main.startLifetime = new ParticleSystem.MinMaxCurve(0.3f, 0.6f);
-        main.startSpeed = new ParticleSystem.MinMaxCurve(0.1f, 0.4f);
-        main.startSize = new ParticleSystem.MinMaxCurve(0.05f, 0.12f);
+        main.startSpeed = new ParticleSystem.MinMaxCurve(0.05f, 0.2f);
+        main.startSize = new ParticleSystem.MinMaxCurve(0.02f, 0.05f);
         main.startColor = new ParticleSystem.MinMaxGradient(
             new Color(1f, 0.6f, 0.1f),
             new Color(0.7f, 0.7f, 0.7f));
@@ -64,11 +64,11 @@ public class Missile : MonoBehaviour
         main.simulationSpace = ParticleSystemSimulationSpace.World;
 
         var emission = ps.emission;
-        emission.rateOverTime = 30;
+        emission.rateOverTime = 20;
 
         var shape = ps.shape;
         shape.shapeType = ParticleSystemShapeType.Sphere;
-        shape.radius = 0.02f;
+        shape.radius = 0.01f;
 
         var col = ps.colorOverLifetime;
         col.enabled = true;
@@ -81,7 +81,7 @@ public class Missile : MonoBehaviour
 
         var sizeOverLife = ps.sizeOverLifetime;
         sizeOverLife.enabled = true;
-        sizeOverLife.size = new ParticleSystem.MinMaxCurve(1f, 2f);
+        sizeOverLife.size = new ParticleSystem.MinMaxCurve(1f, 1.4f);
 
         ps.Play();
         return ps;
@@ -197,22 +197,22 @@ public class Missile : MonoBehaviour
         var main = ps.main;
         main.loop = false;
         main.startLifetime = new ParticleSystem.MinMaxCurve(0.3f, 0.8f);
-        main.startSpeed = new ParticleSystem.MinMaxCurve(2f, 5f);
-        main.startSize = new ParticleSystem.MinMaxCurve(0.08f, 0.25f);
+        main.startSpeed = new ParticleSystem.MinMaxCurve(1f, 2.5f);
+        main.startSize = new ParticleSystem.MinMaxCurve(0.035f, 0.1f);
         main.startColor = new ParticleSystem.MinMaxGradient(
             new Color(1f, 0.7f, 0.1f),
             new Color(1f, 0.3f, 0.1f));
         main.gravityModifier = 0.3f;
-        main.maxParticles = 25;
+        main.maxParticles = 15;
         main.simulationSpace = ParticleSystemSimulationSpace.World;
 
         var emission = ps.emission;
         emission.rateOverTime = 0;
-        emission.SetBursts(new[] { new ParticleSystem.Burst(0f, 25) });
+        emission.SetBursts(new[] { new ParticleSystem.Burst(0f, 15) });
 
         var shape = ps.shape;
         shape.shapeType = ParticleSystemShapeType.Sphere;
-        shape.radius = 0.15f;
+        shape.radius = 0.07f;
 
         var col = ps.colorOverLifetime;
         col.enabled = true;

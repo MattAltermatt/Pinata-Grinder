@@ -386,14 +386,25 @@ public class GlobalUpgradesUI : MonoBehaviour
     void RefreshRow(int index, int cost, int money, bool maxed, string desc)
     {
         _descLabels[index].text = desc;
-        _soldOutLabels[index].SetActive(maxed);
 
-        if (maxed)
+        bool debug = Weapon.IsDebugMode;
+
+        if (debug)
         {
+            _soldOutLabels[index].SetActive(false);
+            _buyBtns[index].gameObject.SetActive(true);
+            _costLabels[index].text = "FREE";
+            _buyBgs[index].color = AffordBg;
+            _buyBtns[index].interactable = true;
+        }
+        else if (maxed)
+        {
+            _soldOutLabels[index].SetActive(true);
             _buyBtns[index].gameObject.SetActive(false);
         }
         else
         {
+            _soldOutLabels[index].SetActive(false);
             _buyBtns[index].gameObject.SetActive(true);
             _costLabels[index].text = "$" + cost;
 

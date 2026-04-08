@@ -84,6 +84,7 @@ public class GlobalUpgrades : MonoBehaviour
 
     bool TrySpend(int cost)
     {
+        if (Weapon.IsDebugMode) return true;
         if (Economy.Instance.Money < cost) return false;
         Economy.Instance.Earn(-cost);
         return true;

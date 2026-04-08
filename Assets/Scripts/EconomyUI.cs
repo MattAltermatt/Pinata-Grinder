@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 /// <summary>
@@ -18,6 +19,7 @@ public class EconomyUI : MonoBehaviour
     private Image _buyStopperBg;
     private Text _savedIndicator;
     private float _savedFadeTimer;
+    private GameObject _optionsOverlay;
 
     void Awake()
     {
@@ -26,8 +28,8 @@ public class EconomyUI : MonoBehaviour
         BuildCanvas();
         BuildMoneyLabel();
         BuildBuyStopperButton();
-        BuildSaveButton();
-        BuildSavedIndicator();
+        BuildOptionsButton();
+        BuildOptionsOverlay();
     }
 
     void Start()
@@ -52,7 +54,7 @@ public class EconomyUI : MonoBehaviour
         if (_savedFadeTimer > 0f)
         {
             _savedFadeTimer -= Time.deltaTime;
-            float alpha = Mathf.Clamp01(_savedFadeTimer / 0.5f); // fade out over last 0.5s
+            float alpha = Mathf.Clamp01(_savedFadeTimer / 0.5f);
             if (_savedIndicator != null)
             {
                 var c = _savedIndicator.color;
@@ -169,9 +171,9 @@ public class EconomyUI : MonoBehaviour
         _stopperCostLabel.raycastTarget = false;
     }
 
-    void BuildSaveButton()
+    void BuildOptionsButton()
     {
-        var go = new GameObject("SaveButton");
+        var go = new GameObject("OptionsButton");
         go.transform.SetParent(Canvas.transform, false);
 
         var rect = go.AddComponent<RectTransform>();
@@ -186,66 +188,216 @@ public class EconomyUI : MonoBehaviour
 
         var btn = go.AddComponent<Button>();
         btn.targetGraphic = bg;
-        btn.onClick.AddListener(OnSaveClicked);
+        btn.onClick.AddListener(ToggleOptionsOverlay);
 
-        // Floppy disk icon (simple square with notch)
-        var iconGo = new GameObject("SaveIcon");
+        // Gear-style icon (circle)
+        var iconGo = new GameObject("OptionsIcon");
         iconGo.transform.SetParent(go.transform, false);
 
         var iconRect = iconGo.AddComponent<RectTransform>();
-        iconRect.anchorMin = new Vector2(0.15f, 0.15f);
+        iconRect.anchorMin = new Vector2(0.15f, 0.3f);
         iconRect.anchorMax = new Vector2(0.85f, 0.85f);
         iconRect.offsetMin = Vector2.zero;
         iconRect.offsetMax = Vector2.zero;
 
         var iconImg = iconGo.AddComponent<Image>();
-        iconImg.sprite = GameField.WhiteSprite();
-        iconImg.color = new Color(0.5f, 0.7f, 1f);
+        iconImg.sprite = GameField.CircleSprite();
+        iconImg.color = new Color(0.6f, 0.6f, 0.65f);
         iconImg.raycastTarget = false;
 
-        // Label slot (small dark rectangle at bottom of floppy)
-        var labelGo = new GameObject("DiskLabel");
-        labelGo.transform.SetParent(iconGo.transform, false);
+        // Label below icon
+        var labelGo = new GameObject("Label");
+        labelGo.transform.SetParent(go.transform, false);
 
         var labelRect = labelGo.AddComponent<RectTransform>();
-        labelRect.anchorMin = new Vector2(0.2f, 0.05f);
-        labelRect.anchorMax = new Vector2(0.8f, 0.4f);
+        labelRect.anchorMin = new Vector2(0f, 0f);
+        labelRect.anchorMax = new Vector2(1f, 0.3f);
         labelRect.offsetMin = Vector2.zero;
         labelRect.offsetMax = Vector2.zero;
 
-        var labelImg = labelGo.AddComponent<Image>();
-        labelImg.sprite = GameField.WhiteSprite();
-        labelImg.color = new Color(0.2f, 0.2f, 0.3f);
-        labelImg.raycastTarget = false;
+        var label = labelGo.AddComponent<Text>();
+        label.text = "Options";
+        label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        label.fontSize = 16;
+        label.fontStyle = FontStyle.Bold;
+        label.alignment = TextAnchor.MiddleCenter;
+        label.color = Color.white;
+        label.raycastTarget = false;
     }
 
-    void BuildSavedIndicator()
+    void BuildOptionsOverlay()
     {
-        var go = new GameObject("SavedIndicator");
-        go.transform.SetParent(Canvas.transform, false);
+        var font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
-        var rect = go.AddComponent<RectTransform>();
-        rect.anchorMin = new Vector2(0f, 0f);
-        rect.anchorMax = new Vector2(0f, 0f);
-        rect.pivot = new Vector2(0f, 0f);
-        rect.anchoredPosition = new Vector2(20f, 110f);
-        rect.sizeDelta = new Vector2(160f, 40f);
+        // Full-screen backdrop
+        _optionsOverlay = new GameObject("OptionsOverlay");
+        _optionsOverlay.transform.SetParent(Canvas.transform, false);
 
-        _savedIndicator = go.AddComponent<Text>();
+        var backdropRect = _optionsOverlay.AddComponent<RectTransform>();
+        backdropRect.anchorMin = Vector2.zero;
+        backdropRect.anchorMax = Vector2.one;
+        backdropRect.offsetMin = Vector2.zero;
+        backdropRect.offsetMax = Vector2.zero;
+
+        var backdropImg = _optionsOverlay.AddComponent<Image>();
+        backdropImg.color = new Color(0f, 0f, 0f, 0.5f);
+        backdropImg.raycastTarget = true;
+
+        // Center panel
+        var panel = new GameObject("Panel");
+        panel.transform.SetParent(_optionsOverlay.transform, false);
+
+        var panelRect = panel.AddComponent<RectTransform>();
+        panelRect.anchorMin = new Vector2(0.5f, 0.5f);
+        panelRect.anchorMax = new Vector2(0.5f, 0.5f);
+        panelRect.pivot = new Vector2(0.5f, 0.5f);
+        panelRect.sizeDelta = new Vector2(500f, 400f);
+
+        var panelImg = panel.AddComponent<Image>();
+        panelImg.color = new Color(0.1f, 0.1f, 0.15f, 0.95f);
+
+        // Title
+        var titleGo = new GameObject("Title");
+        titleGo.transform.SetParent(panel.transform, false);
+
+        var titleRect = titleGo.AddComponent<RectTransform>();
+        titleRect.anchorMin = new Vector2(0f, 1f);
+        titleRect.anchorMax = new Vector2(1f, 1f);
+        titleRect.pivot = new Vector2(0.5f, 1f);
+        titleRect.anchoredPosition = new Vector2(0f, -10f);
+        titleRect.sizeDelta = new Vector2(0f, 70f);
+
+        var titleText = titleGo.AddComponent<Text>();
+        titleText.text = "OPTIONS";
+        titleText.font = font;
+        titleText.fontSize = 40;
+        titleText.fontStyle = FontStyle.Bold;
+        titleText.alignment = TextAnchor.MiddleCenter;
+        titleText.color = Color.white;
+        titleText.raycastTarget = false;
+
+        // Close button (top-right X)
+        var closeGo = new GameObject("CloseButton");
+        closeGo.transform.SetParent(panel.transform, false);
+
+        var closeRect = closeGo.AddComponent<RectTransform>();
+        closeRect.anchorMin = new Vector2(1f, 1f);
+        closeRect.anchorMax = new Vector2(1f, 1f);
+        closeRect.pivot = new Vector2(1f, 1f);
+        closeRect.anchoredPosition = new Vector2(-5f, -5f);
+        closeRect.sizeDelta = new Vector2(60f, 60f);
+
+        var closeBg = closeGo.AddComponent<Image>();
+        closeBg.color = new Color(0.5f, 0.15f, 0.1f, 0.9f);
+
+        var closeBtn = closeGo.AddComponent<Button>();
+        closeBtn.targetGraphic = closeBg;
+        closeBtn.onClick.AddListener(() => _optionsOverlay.SetActive(false));
+
+        var xLabelGo = new GameObject("XLabel");
+        xLabelGo.transform.SetParent(closeGo.transform, false);
+
+        var xRect = xLabelGo.AddComponent<RectTransform>();
+        xRect.anchorMin = Vector2.zero;
+        xRect.anchorMax = Vector2.one;
+        xRect.offsetMin = Vector2.zero;
+        xRect.offsetMax = Vector2.zero;
+
+        var xLabel = xLabelGo.AddComponent<Text>();
+        xLabel.text = "X";
+        xLabel.font = font;
+        xLabel.fontSize = 36;
+        xLabel.fontStyle = FontStyle.Bold;
+        xLabel.alignment = TextAnchor.MiddleCenter;
+        xLabel.color = Color.white;
+        xLabel.raycastTarget = false;
+
+        // Save button
+        BuildOverlayButton(panel.transform, "SaveButton", "Save Game",
+            new Vector2(0f, -100f), new Color(0.2f, 0.5f, 0.8f, 0.9f), font, OnSaveClicked);
+
+        // Saved indicator (inside panel, below save button)
+        var savedGo = new GameObject("SavedIndicator");
+        savedGo.transform.SetParent(panel.transform, false);
+
+        var savedRect = savedGo.AddComponent<RectTransform>();
+        savedRect.anchorMin = new Vector2(0.5f, 1f);
+        savedRect.anchorMax = new Vector2(0.5f, 1f);
+        savedRect.pivot = new Vector2(0.5f, 1f);
+        savedRect.anchoredPosition = new Vector2(0f, -180f);
+        savedRect.sizeDelta = new Vector2(200f, 40f);
+
+        _savedIndicator = savedGo.AddComponent<Text>();
         _savedIndicator.text = "Saved!";
-        _savedIndicator.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        _savedIndicator.font = font;
         _savedIndicator.fontSize = 28;
         _savedIndicator.fontStyle = FontStyle.Bold;
         _savedIndicator.alignment = TextAnchor.MiddleCenter;
         _savedIndicator.color = new Color(0.5f, 1f, 0.5f, 0f);
+        savedGo.SetActive(false);
 
-        go.SetActive(false);
+        // Restart button
+        BuildOverlayButton(panel.transform, "RestartButton", "Restart",
+            new Vector2(0f, -240f), new Color(0.7f, 0.2f, 0.15f, 0.9f), font, OnRestartClicked);
+
+        _optionsOverlay.SetActive(false);
+    }
+
+    void BuildOverlayButton(Transform parent, string name, string label,
+        Vector2 position, Color bgColor, Font font, UnityEngine.Events.UnityAction onClick)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+
+        var rect = go.AddComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0.5f, 1f);
+        rect.anchorMax = new Vector2(0.5f, 1f);
+        rect.pivot = new Vector2(0.5f, 1f);
+        rect.anchoredPosition = position;
+        rect.sizeDelta = new Vector2(400f, 70f);
+
+        var bg = go.AddComponent<Image>();
+        bg.color = bgColor;
+
+        var btn = go.AddComponent<Button>();
+        btn.targetGraphic = bg;
+        btn.onClick.AddListener(onClick);
+
+        var labelGo = new GameObject("Label");
+        labelGo.transform.SetParent(go.transform, false);
+
+        var labelRect = labelGo.AddComponent<RectTransform>();
+        labelRect.anchorMin = Vector2.zero;
+        labelRect.anchorMax = Vector2.one;
+        labelRect.offsetMin = Vector2.zero;
+        labelRect.offsetMax = Vector2.zero;
+
+        var labelText = labelGo.AddComponent<Text>();
+        labelText.text = label;
+        labelText.font = font;
+        labelText.fontSize = 30;
+        labelText.fontStyle = FontStyle.Bold;
+        labelText.alignment = TextAnchor.MiddleCenter;
+        labelText.color = Color.white;
+        labelText.raycastTarget = false;
+    }
+
+    void ToggleOptionsOverlay()
+    {
+        _optionsOverlay.SetActive(!_optionsOverlay.activeSelf);
     }
 
     void OnSaveClicked()
     {
         if (SaveManager.Instance != null)
             SaveManager.Instance.Save();
+    }
+
+    void OnRestartClicked()
+    {
+        if (SaveManager.Instance != null)
+            SaveManager.Instance.DeleteSave();
+        SceneManager.LoadScene(0);
     }
 
     void ShowSavedIndicator()

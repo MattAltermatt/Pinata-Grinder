@@ -20,6 +20,7 @@ public class Laser : MonoBehaviour
     private PinataSquare _target;
     private float _cooldownTimer;
     private bool _isCoolingDown;
+    private bool _initialDelaySet;
     private LineRenderer _beamLine;
     private Transform _emitPoint;
     private ParticleSystem _dishSparkle;
@@ -132,6 +133,14 @@ public class Laser : MonoBehaviour
         if (!initialized || stopper == null) return;
 
         transform.position = stopper.position;
+
+        // Stagger first acquisition so multiple lasers on the same stopper don't lock on simultaneously
+        if (!_initialDelaySet)
+        {
+            _initialDelaySet = true;
+            _isCoolingDown = true;
+            _cooldownTimer = Random.Range(0f, _cooldownDuration);
+        }
 
         if (_isCoolingDown)
         {

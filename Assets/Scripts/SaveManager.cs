@@ -93,6 +93,13 @@ public class SaveManager : MonoBehaviour
         OnSaved?.Invoke();
     }
 
+    public void DeleteSave()
+    {
+        string path = GetSavePath();
+        if (File.Exists(path))
+            File.Delete(path);
+    }
+
     public SaveData Load()
     {
         string path = GetSavePath();

@@ -20,6 +20,7 @@ public class MissileLauncher : MonoBehaviour
     private Pinata _target;
     private float _reloadTimer;
     private bool _isReloading;
+    private bool _initialDelaySet;
 
     public void Init(Vector2 stopperCenter, float stopperRadius)
     {
@@ -47,6 +48,14 @@ public class MissileLauncher : MonoBehaviour
     {
         if (!initialized || stopper == null) return;
         transform.position = stopper.position;
+
+        // Stagger first shot so multiple launchers on the same stopper don't fire in sync
+        if (!_initialDelaySet)
+        {
+            _initialDelaySet = true;
+            _isReloading = true;
+            _reloadTimer = Random.Range(0f, _fireInterval);
+        }
 
         // Reload timer
         if (_isReloading)

@@ -85,9 +85,9 @@ new stoppers don't overlap existing ones.
 | `Stopper.cs` | Stopper component; tracks `Weapon` reference (polymorphic), opens `StopperMenu` on click |
 | `Draggable.cs` | Click-and-drag via Input System; clamps to configurable bounds; fires `OnClicked` event for taps (tracks `_hasDragged` flag, threshold 0.35 units) |
 | `Economy.cs` | Singleton tracking money ($15 start), independent purchase counts per weapon type, exponential pricing (`base × 1.6^n`), sell refunds = TotalInvestment; fires `OnMoneyChanged` event; `CaptureState`/`RestoreState` for save system |
-| `EconomyUI.cs` | Creates Canvas (Screen Space Overlay) + EventSystem; money label (top-center), buy-stopper button (top-left), save button (bottom-left) with "Saved!" indicator; uses `FindClearSpawnPos` for placement |
+| `EconomyUI.cs` | Creates Canvas (Screen Space Overlay) + EventSystem; money label (top-center), buy-stopper button (top-left), options button (bottom-left) with overlay (save + restart); uses `FindClearSpawnPos` for placement |
 | `SaveData.cs` | `[Serializable]` data classes for JSON save/load: `SaveData`, `GlobalUpgradesSaveData`, `StopperSaveData` |
-| `SaveManager.cs` | Singleton handling save/load to `Application.persistentDataPath/save.json`; auto-saves every 5 minutes; fires `OnSaved` event for UI indicator; WebGL IndexedDB flush |
+| `SaveManager.cs` | Singleton handling save/load/delete to `Application.persistentDataPath/save.json`; auto-saves every 5 minutes; `DeleteSave()` for restart; fires `OnSaved` event for UI indicator; WebGL IndexedDB flush |
 | `StopperMenu.cs` | Popup panel near clicked stopper; no weapon: shows buy-saw, buy-laser, and sell-stopper rows; has weapon: shows full-screen upgrade overlay with per-upgrade buttons + sell |
 | `StopperFactory.cs` | Plain C# class (not MonoBehaviour); `SpawnStopper`, `AttachSaw` (creates SawGroup), `AttachLaser` (creates LaserGroup), `DetachWeapon`, `DestroyStopper`, `FindClearSpawnPos` |
 | `ConfettiBurst.cs` | Spawns a one-shot `ParticleSystem` burst (15 particles), tinted to match the destroyed square |
@@ -102,8 +102,8 @@ GameManager           — GameField + SquareSpawner + Economy components
 EconomyCanvas         — Canvas (Screen Space Overlay) + CanvasScaler + GraphicRaycaster
   MoneyLabel          — UI.Text, top-center, green, shows "$10"
   BuyStopperButton    — UI.Button + Image, top-left, stopper icon + cost label
-  SaveButton          — UI.Button + Image, bottom-left, floppy disk icon
-  SavedIndicator      — UI.Text, bottom-left above save button, fades after save
+  OptionsButton       — UI.Button + Image, bottom-left, gear icon + "Options" label
+  OptionsOverlay      — full-screen overlay (hidden by default): Save Game + Restart buttons, "Saved!" indicator
   StopperMenu         — popup panel (hidden by default), buy-saw row or "Saw equipped"
 EventSystem           — EventSystem + InputSystemUIInputModule (required for UI clicks)
 WallLeft              — BoxCollider2D (Wall layer), off-screen
@@ -229,7 +229,8 @@ money invested (base cost + all upgrade costs). Sell price = `TotalInvestment`.
 - **5 upgrade slots**: Aim Speed ($5, max 20, 30→360 deg/s), Range ($8, max 20,
   1→fieldWidth), Damage ($10, unlimited, 1+0.5×level), Extra Lasers ($20, max 19→20),
   Cooldown ($8, max 20, 3s→0.1s)
-- Each laser targets independently with its own beam and particles
+- Each laser targets independently with its own beam and particles; initial cooldown
+  is staggered randomly (0 to cooldownDuration) so multiple lasers don't all lock on simultaneously
 
 ### Missile (via MissileGroup)
 
@@ -243,11 +244,12 @@ money invested (base cost + all upgrade costs). Sell price = `TotalInvestment`.
 - **Projectile**: `Missile.cs` — fire-and-forget, no Rigidbody2D/collider, moves via
   `transform.position +=`, self-destructs after 10s or 20 units offscreen
 - **VFX**: smoke/fire trail (ParticleSystem, detached on detonation to fade),
-  orange/red explosion burst (25 particles, 2s self-destruct)
+  orange/red explosion burst (15 particles, 2s self-destruct)
 - **6 upgrade slots**: Fire Rate ($8, max 20, 5s→0.5s), Damage ($10, unlimited,
   5+2.5×level), Blast Radius ($8, max 20, 0.4→1.5), Missile Speed ($5, max 20,
   1.5→6 u/s), Extra Launchers ($25, max 19→20), Homing ($12, max 10, 0→5 rad/s)
-- Each launcher targets and fires independently
+- Each launcher targets and fires independently; initial fire timing is staggered
+  randomly (0 to fireInterval) so multiple launchers on the same stopper don't fire in sync
 - **Economy**: $60 base cost (premium tier), exponential pricing ($60→$96→$154...)
 
 ### Radial Upgrade Menu
@@ -257,8 +259,11 @@ When clicking a stopper with a weapon, StopperMenu displays a radial dial:
 - N upgrade buttons arranged in a ring (radius 130px, each 85×85px)
 - Each button shows: icon, name, level indicator, cost
 - Colors: affordable=dark blue, can't afford=red, maxed=gold
-- Debug mode (spacebar in editor): upgrade buttons become free and ignore max level caps
-  (`Weapon.IsDebugMode` static property, toggled by `DebugMode` component)
+- Debug mode (spacebar in editor, `#if UNITY_EDITOR` only): **ALL** upgrade buttons
+  become free and ignore max level caps — both weapon upgrades (SawGroup, LaserGroup,
+  MissileGroup via `TryUpgrade`) and global upgrades (GlobalUpgrades via `TrySpend`).
+  `Weapon.IsDebugMode` static property, toggled by `DebugMode` component. UI shows
+  "FREE" on all upgrade buttons when active (StopperMenu + GlobalUpgradesUI both check).
 
 **Important**: Private fields on runtime-created `MonoBehaviour`s are lost during domain
 reload. Use `[SerializeField, HideInInspector]` for fields that must survive recompilation
@@ -421,14 +426,19 @@ All UI is built procedurally in `EconomyUI.Awake()` — no prefabs or editor-pla
   (matching GlobalUpgrades style) with weapon name, per-upgrade rows (icon + name +
   description + buy button or SOLD OUT), and sell button showing total investment refund.
   Buy panel hides on click outside; upgrade overlay hides via close button (X).
-- **Save button**: Bottom-left (20px inset), 80×80, floppy disk icon. Shows "Saved!"
-  text that fades over 1.5s on manual or auto save.
+- **Options button**: Bottom-left (20px inset), 80×80, gear circle icon + "Options"
+  label. Opens full-screen overlay with semi-transparent backdrop + centered 500×400 panel.
+- **Options overlay**: Contains "OPTIONS" title, close button (X), "Save Game" button
+  (blue, triggers `SaveManager.Save()`), "Saved!" indicator (fades over 1.5s), and
+  "Restart" button (red, deletes save file via `SaveManager.DeleteSave()` then reloads
+  scene via `SceneManager.LoadScene(0)`).
 - **Font**: `Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf")` (Unity built-in)
 
 ## Save System
 
 `SaveManager` singleton on GameManager handles persistence to `Application.persistentDataPath/save.json`
-via `JsonUtility`. Auto-saves every 5 minutes; manual save via bottom-left button.
+via `JsonUtility`. Auto-saves every 5 minutes; manual save via Options overlay.
+`DeleteSave()` removes the save file for the restart feature.
 
 **Saved state**: Economy (money + 4 purchase counters), GlobalUpgrades (6 level ints),
 and per-stopper data (position, weapon type, upgrade levels, total investment, saw direction).
