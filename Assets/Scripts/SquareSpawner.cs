@@ -70,7 +70,7 @@ public class SquareSpawner : MonoBehaviour
         rb.angularVelocity        = Random.Range(-maxAngularSpeed, maxAngularSpeed);
 
         var pinata = parent.AddComponent<Pinata>();
-        var color  = Random.ColorHSV(0f, 1f, 0.7f, 1f, 0.8f, 1f);
+        var color  = Random.ColorHSV(0f, 1f, 0.35f, 0.55f, 0.95f, 1f);
 
         float offsetX = (gridWidth  - 1) * 0.5f;
         float offsetY = (gridHeight - 1) * 0.5f;

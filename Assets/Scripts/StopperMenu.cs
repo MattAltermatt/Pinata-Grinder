@@ -26,6 +26,11 @@ public class StopperMenu : MonoBehaviour
     private Button _buyLaserBtn;
     private Image _buyLaserBg;
 
+    // Sell stopper row (inside buy panel)
+    private Text _sellStopperCostLabel;
+    private Button _sellStopperBtn;
+    private Image _sellStopperBg;
+
     // Upgrade overlay (full-screen, like GlobalUpgrades)
     private GameObject _upgradeOverlay;
     private Text _weaponNameLabel;
@@ -81,22 +86,28 @@ public class StopperMenu : MonoBehaviour
         _buyPanel.transform.SetParent(canvas.transform, false);
 
         _buyPanelRect = _buyPanel.AddComponent<RectTransform>();
-        _buyPanelRect.sizeDelta = new Vector2(200f, 220f);
+        _buyPanelRect.sizeDelta = new Vector2(200f, 320f);
 
         var panelImg = _buyPanel.AddComponent<Image>();
         panelImg.color = new Color(0.1f, 0.1f, 0.15f, 0.9f);
 
         BuildBuyRow(_buyPanel.transform, "BuySawRow",
-            new Vector2(10f, 115f), new Vector2(-10f, -10f),
+            new Vector2(10f, 215f), new Vector2(-10f, -10f),
             GameField.SawSprite(), new Color(0.75f, 0.78f, 0.82f),
             out _buySawBg, out _buySawBtn, out _sawCostLabel);
         _buySawBtn.onClick.AddListener(OnBuySawClicked);
 
         BuildBuyRow(_buyPanel.transform, "BuyLaserRow",
-            new Vector2(10f, 10f), new Vector2(-10f, -115f),
+            new Vector2(10f, 110f), new Vector2(-10f, -115f),
             GameField.DishSprite(), Color.white,
             out _buyLaserBg, out _buyLaserBtn, out _laserCostLabel);
         _buyLaserBtn.onClick.AddListener(OnBuyLaserClicked);
+
+        BuildBuyRow(_buyPanel.transform, "SellStopperRow",
+            new Vector2(10f, 10f), new Vector2(-10f, -215f),
+            GameField.CircleSprite(), new Color(0.35f, 0.35f, 0.4f),
+            out _sellStopperBg, out _sellStopperBtn, out _sellStopperCostLabel);
+        _sellStopperBtn.onClick.AddListener(OnSellStopperClicked);
     }
 
     void BuildBuyRow(Transform parent, string name,
@@ -511,6 +522,17 @@ public class StopperMenu : MonoBehaviour
         }
     }
 
+    void OnSellStopperClicked()
+    {
+        if (_currentStopper == null) return;
+        if (_currentStopper.HasWeapon) return;
+        var allStoppers = Object.FindObjectsByType<Stopper>(FindObjectsSortMode.None);
+        if (allStoppers.Length <= 1) return;
+        if (!Economy.Instance.TrySellStopper()) return;
+        StopperFactory.Instance.DestroyStopper(_currentStopper);
+        Hide();
+    }
+
     void OnUpgradeClicked(int slot)
     {
         if (_currentStopper == null || !_currentStopper.HasWeapon) return;
@@ -554,6 +576,13 @@ public class StopperMenu : MonoBehaviour
         bool canAffordLaser = Economy.Instance.CanAffordLaser();
         _buyLaserBg.color = canAffordLaser ? AffordBg : CantAffordBg;
         _buyLaserBtn.interactable = canAffordLaser;
+
+        int sellPrice = Economy.Instance.StopperSellPrice;
+        var allStoppers = Object.FindObjectsByType<Stopper>(FindObjectsSortMode.None);
+        bool canSell = allStoppers.Length > 1 && sellPrice > 0;
+        _sellStopperCostLabel.text = canSell ? "Sell $" + sellPrice : "Sell";
+        _sellStopperBg.color = canSell ? new Color(0.5f, 0.15f, 0.1f, 0.9f) : CantAffordBg;
+        _sellStopperBtn.interactable = canSell;
     }
 
     void RefreshUpgradeRows()

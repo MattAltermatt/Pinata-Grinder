@@ -3,7 +3,7 @@ using UnityEngine;
 
 /// <summary>
 /// Weapon group that manages multiple Laser instances on a single stopper.
-/// Implements 4 upgrade slots: Aim Speed, Range, Damage, Extra Lasers.
+/// Implements 5 upgrade slots: Aim Speed, Range, Damage, Extra Lasers, Cooldown.
 /// Each laser targets independently. All share upgrade state.
 /// </summary>
 public class LaserGroup : Weapon
@@ -12,15 +12,18 @@ public class LaserGroup : Weapon
     private const int SlotRange      = 1;
     private const int SlotDamage     = 2;
     private const int SlotLasers     = 3;
-    private const int TotalSlots     = 4;
+    private const int SlotCooldown   = 4;
+    private const int TotalSlots     = 5;
 
-    private static readonly int[] BaseCosts = { 5, 8, 10, 20 };
-    private static readonly int[] MaxLevels = { 20, 20, 0, 19 };
+    private static readonly int[] BaseCosts = { 5, 8, 10, 20, 8 };
+    private static readonly int[] MaxLevels = { 20, 20, 0, 19, 20 };
 
     private const float StartAimSpeed = 30f;
     private const float MaxAimSpeed   = 360f;
     private const float StartRange    = 1f;
     private const float StartDamage   = 1f;
+    private const float StartCooldown = 3f;
+    private const float MinCooldown   = 0.1f;
 
     private readonly List<Laser> _lasers = new();
     private WeaponUpgradeData _upgrades;
@@ -75,6 +78,7 @@ public class LaserGroup : Weapon
             case SlotRange:    ApplyRange(); break;
             case SlotDamage:   ApplyDamage(); break;
             case SlotLasers:   AddLaser(); break;
+            case SlotCooldown: ApplyCooldown(); break;
         }
     }
 
@@ -101,6 +105,12 @@ public class LaserGroup : Weapon
         return StartDamage + lvl * 0.5f;
     }
 
+    float CurrentCooldown()
+    {
+        int lvl = _upgrades.GetLevel(SlotCooldown);
+        return StartCooldown - lvl * ((StartCooldown - MinCooldown) / MaxLevels[SlotCooldown]);
+    }
+
     // ── Apply to all lasers ──
 
     void ApplyAimSpeed()
@@ -121,6 +131,12 @@ public class LaserGroup : Weapon
         foreach (var l in _lasers) l.SetDamage(d);
     }
 
+    void ApplyCooldown()
+    {
+        float cd = CurrentCooldown();
+        foreach (var l in _lasers) l.SetCooldown(cd);
+    }
+
     // ── Add laser ──
 
     void AddLaser()
@@ -134,6 +150,7 @@ public class LaserGroup : Weapon
         laser.SetRotationSpeed(CurrentAimSpeed());
         laser.SetMaxRange(CurrentRange());
         laser.SetDamage(CurrentDamage());
+        laser.SetCooldown(CurrentCooldown());
 
         if (_stopper != null)
             laser.SetStopper(_stopper);
@@ -193,6 +210,14 @@ public class LaserGroup : Weapon
                 Description = "Count: " + (lvl + 1) + (maxed ? " (MAX)" : ""),
                 Icon = GameField.DishSprite(64),
                 IconColor = Color.white,
+                Cost = cost, Level = lvl, MaxLevel = maxLvl, IsMaxed = maxed
+            },
+            SlotCooldown => new UpgradeSlotInfo
+            {
+                Name = "Cooldown",
+                Description = CurrentCooldown().ToString("F1") + "s",
+                Icon = GameField.ClockSprite(64),
+                IconColor = new Color(1f, 0.6f, 0.2f),
                 Cost = cost, Level = lvl, MaxLevel = maxLvl, IsMaxed = maxed
             },
             _ => default

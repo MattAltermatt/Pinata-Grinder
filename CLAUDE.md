@@ -38,8 +38,8 @@ identifies weapon types for the UI and economy. Two weapon types exist:
 - **SawBlade**: orbits its stopper at the edge using `Rigidbody2D.MovePosition()` in
   `FixedUpdate`; damages on collision; emits sparks on hit
 - **Laser**: satellite-dish shaped; locks onto the closest alive `PinataSquare` within
-  range, fires a continuous red `LineRenderer` beam dealing 1 DPS; enters 2s cooldown
-  after a kill; sparkles at dish and hit point while firing; visually replaces the
+  range, fires a continuous red `LineRenderer` beam dealing 1 DPS; enters 3s cooldown
+  (upgradeable to 0.1s) after a kill; sparkles at dish and hit point while firing; visually replaces the
   stopper sprite (hides it on attach, restores on sell)
 
 Weapons are purchased per-stopper via the `StopperMenu` popup (click a stopper to open).
@@ -48,8 +48,8 @@ Clicking a stopper with a weapon shows the weapon name and a sell button.
 **Stoppers** are draggable (click-and-drag via `Draggable` component) and constrained to
 the field bounds. Each stopper has a Kinematic `Rigidbody2D`. Weapons track their
 stopper's `Transform` and follow automatically. The player starts with one stopper
-(centered at 0, 1) and buys more via the HUD button. `Draggable` distinguishes click
-(< 0.15 world units movement) from drag, firing `OnClicked` for menu interaction.
+(centered at 0, 1) and buys more via the HUD button. `Draggable` distinguishes click from drag using a `_hasDragged` flag
+(threshold 0.35 world units), firing `OnClicked` for menu interaction only on tap.
 
 **StopperFactory** is a plain C# class (not MonoBehaviour) that encapsulates stopper,
 saw, and laser creation/destruction. It is initialized by `GameField.Awake()` and used
@@ -70,15 +70,15 @@ new stoppers don't overlap existing ones.
 | `WeaponUpgradeData.cs` | Plain C# class tracking per-weapon upgrade levels and total investment for sell price |
 | `UpgradeSlotInfo.cs` | Struct with upgrade slot UI info (name, description, icon, cost, level, maxLevel) |
 | `SawGroup.cs` | Weapon group managing multiple `SawBlade` instances; 5 upgrade slots (blades, speed, size, torque, damage) |
-| `LaserGroup.cs` | Weapon group managing multiple `Laser` instances; 4 upgrade slots (aim speed, range, damage, extra lasers) |
+| `LaserGroup.cs` | Weapon group managing multiple `Laser` instances; 5 upgrade slots (aim speed, range, damage, extra lasers, cooldown) |
 | `SawBlade.cs` | Single saw blade instance (MonoBehaviour, not Weapon); orbits stopper, damages on contact; configurable via setters |
 | `Laser.cs` | Single laser turret instance (MonoBehaviour, not Weapon); gradual rotation, angular targeting preference; configurable via setters |
 | `Stopper.cs` | Stopper component; tracks `Weapon` reference (polymorphic), opens `StopperMenu` on click |
-| `Draggable.cs` | Click-and-drag via Input System; clamps to configurable bounds; fires `OnClicked` event for taps (< 0.35 units movement) |
+| `Draggable.cs` | Click-and-drag via Input System; clamps to configurable bounds; fires `OnClicked` event for taps (tracks `_hasDragged` flag, threshold 0.35 units) |
 | `Economy.cs` | Singleton tracking money ($10 start), independent purchase counts per weapon type, exponential pricing (`base × 1.6^n`), sell refunds = TotalInvestment; fires `OnMoneyChanged` event |
 | `EconomyUI.cs` | Creates Canvas (Screen Space Overlay) + EventSystem; money label (top-center), buy-stopper button (top-left with icon and cost); uses `FindClearSpawnPos` for placement |
-| `StopperMenu.cs` | Popup panel near clicked stopper; no weapon: shows buy-saw and buy-laser rows; has weapon: shows radial upgrade dial with per-upgrade buttons + sell |
-| `StopperFactory.cs` | Plain C# class (not MonoBehaviour); `SpawnStopper`, `AttachSaw` (creates SawGroup), `AttachLaser` (creates LaserGroup), `DetachWeapon`, `FindClearSpawnPos` |
+| `StopperMenu.cs` | Popup panel near clicked stopper; no weapon: shows buy-saw, buy-laser, and sell-stopper rows; has weapon: shows full-screen upgrade overlay with per-upgrade buttons + sell |
+| `StopperFactory.cs` | Plain C# class (not MonoBehaviour); `SpawnStopper`, `AttachSaw` (creates SawGroup), `AttachLaser` (creates LaserGroup), `DetachWeapon`, `DestroyStopper`, `FindClearSpawnPos` |
 | `ConfettiBurst.cs` | Spawns a one-shot `ParticleSystem` burst (15 particles), tinted to match the destroyed square |
 | `DeathLine.cs` | Marker `MonoBehaviour` on the red death-line trigger collider |
 
@@ -162,8 +162,8 @@ identifies weapon types for the UI and economy. Two weapon types exist:
 - **SawBlade**: orbits its stopper at the edge using `Rigidbody2D.MovePosition()` in
   `FixedUpdate`; damages on collision; emits sparks on hit
 - **Laser**: satellite-dish shaped; locks onto the closest alive `PinataSquare` within
-  range, fires a continuous red `LineRenderer` beam dealing 1 DPS; enters 2s cooldown
-  after a kill; sparkles at dish and hit point while firing; visually replaces the
+  range, fires a continuous red `LineRenderer` beam dealing 1 DPS; enters 3s cooldown
+  (upgradeable to 0.1s) after a kill; sparkles at dish and hit point while firing; visually replaces the
   stopper sprite (hides it on attach, restores on sell)
 
 Weapons are purchased per-stopper via the `StopperMenu` popup (click a stopper to open).
@@ -172,8 +172,8 @@ Clicking a stopper with a weapon shows the weapon name and a sell button.
 **Stoppers** are draggable (click-and-drag via `Draggable` component) and constrained to
 the field bounds. Each stopper has a Kinematic `Rigidbody2D`. Weapons track their
 stopper's `Transform` and follow automatically. The player starts with one stopper
-(centered at 0, 1) and buys more via the HUD button. `Draggable` distinguishes click
-(< 0.15 world units movement) from drag, firing `OnClicked` for menu interaction.
+(centered at 0, 1) and buys more via the HUD button. `Draggable` distinguishes click from drag using a `_hasDragged` flag
+(threshold 0.35 world units), firing `OnClicked` for menu interaction only on tap.
 
 **StopperFactory** is a plain C# class (not MonoBehaviour) that encapsulates stopper,
 saw, and laser creation/destruction. It is initialized by `GameField.Awake()` and used
@@ -203,8 +203,9 @@ money invested (base cost + all upgrade costs). Sell price = `TotalInvestment`.
   only fires when within 15° of target (aim error threshold)
 - **Angular targeting**: `AcquireTarget()` scores by distance + angular proximity
   to current aim direction, preferring targets it can reach faster
-- **4 upgrade slots**: Aim Speed ($5, max 20, 30→360 deg/s), Range ($8, max 20,
-  1→fieldWidth), Damage ($10, unlimited, 1+0.5×level), Extra Lasers ($20, max 19→20)
+- **5 upgrade slots**: Aim Speed ($5, max 20, 30→360 deg/s), Range ($8, max 20,
+  1→fieldWidth), Damage ($10, unlimited, 1+0.5×level), Extra Lasers ($20, max 19→20),
+  Cooldown ($8, max 20, 3s→0.1s)
 - Each laser targets independently with its own beam and particles
 
 ### Radial Upgrade Menu
@@ -228,7 +229,7 @@ Pinatas are composite 5×5 grids of squares that fall as one rigid body.
   `Pinata` GO with `Rigidbody2D`, then 25 child squares
 - **Spawn bounds**: Oscillation amplitude clamped to keep pinatas within field width
 - **Square sprite**: Procedural 32×32 white texture with 1-pixel darker border (grey 0.6)
-  for visible outlines between adjacent squares
+  for visible outlines between adjacent squares; pastel colors (HSV: S 0.35–0.55, V 0.95–1.0)
 - **Health**: Each square has independent health (default 1 HP, will become variable)
 - **Death**: When health ≤ 0, the square darkens (color *= 0.5), shrinks to 75% size,
   switches to `DeadSquare` layer, and detaches from the parent
@@ -318,7 +319,7 @@ subsequent gameplay.
 
 **Laser** (defaults set by LaserGroup upgrades):
 - `damagePerSecond` — starts 1, upgradeable via `1 + level × 0.5`
-- `cooldownDuration` (2) — seconds of downtime after killing a target
+- `cooldownDuration` (3) — seconds of downtime after killing a target (upgradeable to 0.1s)
 - `maxRange` — starts 1, upgradeable to full field width over 20 levels
 - `rotationSpeed` — starts 30 deg/s, upgradeable to 360 deg/s
 
@@ -349,7 +350,10 @@ subsequent gameplay.
 - **Events**: `OnMoneyChanged(int)` fires on earn/spend/sell; UI subscribes to update labels
 - **Buy methods**: `TryBuySaw()` / `TryBuyLaser()` / `TryBuyStopper()` return bool, deduct money, increment count
 - **Sell methods**: `SellWeapon(Weapon)` refunds `weapon.Upgrades.TotalInvestment` (base
-  purchase cost + all upgrade costs) and decrements the per-type purchase counter
+  purchase cost + all upgrade costs) and decrements the per-type purchase counter;
+  `TrySellStopper()` refunds previous stopper cost and decrements `_stoppersPurchased`
+- **Stopper selling**: Only available when stopper has no weapon and more than one stopper
+  exists. Sell price = `Cost(base, purchaseCount - 1)`. Cannot sell the free starter stopper.
 
 ## UI System
 
@@ -363,9 +367,9 @@ All UI is built procedurally in `EconomyUI.Awake()` — no prefabs or editor-pla
 - **Buy Stopper button**: Top-left (20px inset), 140×140, dark panel with stopper circle
   icon + cost label. Grays out and becomes non-interactable when unaffordable.
 - **StopperMenu**: Two modes: (1) no weapon — small popup panel near stopper with
-  buy-saw and buy-laser rows; (2) has weapon — full-screen upgrade overlay (matching
-  GlobalUpgrades style) with weapon name, per-upgrade rows (icon + name + description +
-  buy button or SOLD OUT), and sell button showing total investment refund.
+  buy-saw, buy-laser, and sell-stopper rows; (2) has weapon — full-screen upgrade overlay
+  (matching GlobalUpgrades style) with weapon name, per-upgrade rows (icon + name +
+  description + buy button or SOLD OUT), and sell button showing total investment refund.
   Buy panel hides on click outside; upgrade overlay hides via close button (X).
 - **Font**: `Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf")` (Unity built-in)
 

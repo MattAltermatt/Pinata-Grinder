@@ -134,6 +134,13 @@ public class StopperFactory
         return group;
     }
 
+    public void DestroyStopper(Stopper stopper)
+    {
+        if (stopper.HasWeapon)
+            DetachWeapon(stopper);
+        Object.Destroy(stopper.gameObject);
+    }
+
     public void DetachWeapon(Stopper stopper)
     {
         if (stopper.Weapon != null)

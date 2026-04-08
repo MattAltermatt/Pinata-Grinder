@@ -26,6 +26,7 @@ public class Economy : MonoBehaviour
     public int SawCost => Cost(sawBaseCost, _sawsPurchased);
     public int StopperCost => Cost(stopperBaseCost, _stoppersPurchased);
     public int LaserCost => Cost(laserBaseCost, _lasersPurchased);
+    public int StopperSellPrice => _stoppersPurchased > 0 ? Cost(stopperBaseCost, _stoppersPurchased - 1) : 0;
 
     void Awake()
     {
@@ -102,6 +103,16 @@ public class Economy : MonoBehaviour
         }
         _money += refund;
         OnMoneyChanged?.Invoke(_money);
+    }
+
+    public bool TrySellStopper()
+    {
+        if (_stoppersPurchased <= 0) return false;
+        _stoppersPurchased--;
+        int refund = Cost(stopperBaseCost, _stoppersPurchased);
+        _money += refund;
+        OnMoneyChanged?.Invoke(_money);
+        return true;
     }
 
     int Cost(int baseCost, int count)

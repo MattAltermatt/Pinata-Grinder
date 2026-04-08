@@ -17,6 +17,7 @@ public class Draggable : MonoBehaviour
     private Vector2 _mouseDownWorldPos;
     private float _minX, _maxX, _minY, _maxY;
     private bool _hasBounds;
+    private bool _hasDragged;
 
     private const float ClickThreshold = 0.35f;
 
@@ -50,6 +51,7 @@ public class Draggable : MonoBehaviour
             if (hit != null && hit.gameObject == gameObject)
             {
                 _dragging = true;
+                _hasDragged = false;
                 _offset = (Vector2)transform.position - mouseWorld;
                 _mouseDownWorldPos = mouseWorld;
             }
@@ -59,8 +61,7 @@ public class Draggable : MonoBehaviour
         {
             if (_dragging)
             {
-                float dist = Vector2.Distance(mouseWorld, _mouseDownWorldPos);
-                if (dist < ClickThreshold)
+                if (!_hasDragged)
                     OnClicked?.Invoke(gameObject);
             }
             _dragging = false;
@@ -73,6 +74,10 @@ public class Draggable : MonoBehaviour
         var mouse = Mouse.current;
         if (mouse == null) return;
         Vector2 mouseWorld = _cam.ScreenToWorldPoint(mouse.position.ReadValue());
+
+        if (!_hasDragged && Vector2.Distance(mouseWorld, _mouseDownWorldPos) >= ClickThreshold)
+            _hasDragged = true;
+
         Vector2 target = mouseWorld + _offset;
 
         if (_hasBounds)

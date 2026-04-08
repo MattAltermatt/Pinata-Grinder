@@ -119,6 +119,7 @@ public class Laser : MonoBehaviour
     public void SetRotationSpeed(float degPerSec) => _rotationSpeed = degPerSec;
     public void SetMaxRange(float range) => _maxRange = range;
     public void SetDamage(float dps) => _damagePerSecond = dps;
+    public void SetCooldown(float duration) => _cooldownDuration = duration;
 
     void OnDestroy()
     {

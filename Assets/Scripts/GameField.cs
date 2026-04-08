@@ -65,6 +65,8 @@ public class GameField : MonoBehaviour
         if (cam == null) return;
         cam.orthographic     = true;
         cam.orthographicSize = halfHeight;
+        cam.clearFlags       = CameraClearFlags.SolidColor;
+        cam.backgroundColor  = new Color(0.08f, 0.08f, 0.1f);
     }
 
     /// <summary>
