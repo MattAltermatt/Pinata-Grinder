@@ -30,6 +30,9 @@ public class LaserGroup : Weapon
     private Transform _stopper;
     private float _stopperRadius;
 
+    // Cost multiplier: non-laser upgrades cost more when you have more lasers
+    float InstanceCostMultiplier() => 1f + (_lasers.Count - 1) * 0.5f;
+
     public override WeaponType Type => WeaponType.Laser;
     public override string DisplayName => "Laser";
     public override WeaponUpgradeData Upgrades => _upgrades;
@@ -58,7 +61,8 @@ public class LaserGroup : Weapon
     public override bool TryUpgrade(int slot)
     {
         int maxLvl = MaxLevels[slot];
-        int cost = _upgrades.UpgradeCost(slot, BaseCosts[slot]);
+        float mult = slot == SlotLasers ? 1f : InstanceCostMultiplier();
+        int cost = _upgrades.UpgradeCost(slot, BaseCosts[slot], mult);
 
         if (IsDebugMode)
         {
@@ -199,7 +203,8 @@ public class LaserGroup : Weapon
         int lvl = _upgrades.GetLevel(slot);
         int maxLvl = MaxLevels[slot];
         bool maxed = maxLvl > 0 && lvl >= maxLvl;
-        int cost = _upgrades.UpgradeCost(slot, BaseCosts[slot]);
+        float mult = slot == SlotLasers ? 1f : InstanceCostMultiplier();
+        int cost = _upgrades.UpgradeCost(slot, BaseCosts[slot], mult);
 
         return slot switch
         {

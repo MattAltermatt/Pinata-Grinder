@@ -26,9 +26,9 @@ public class WeaponUpgradeData
         _totalInvestment = basePurchaseCost;
     }
 
-    public int UpgradeCost(int slot, int baseCost)
+    public int UpgradeCost(int slot, int baseCost, float multiplier = 1f)
     {
-        return Mathf.RoundToInt(baseCost * Mathf.Pow(CostMultiplier, _levels[slot]));
+        return Mathf.RoundToInt(baseCost * Mathf.Pow(CostMultiplier, _levels[slot]) * multiplier);
     }
 
     public void BuyUpgrade(int slot, int cost)

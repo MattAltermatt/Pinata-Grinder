@@ -35,6 +35,9 @@ public class MissileGroup : Weapon
     private Transform _stopper;
     private float _stopperRadius;
 
+    // Cost multiplier: non-launcher upgrades cost more when you have more launchers
+    float InstanceCostMultiplier() => 1f + (_launchers.Count - 1) * 0.5f;
+
     public override WeaponType Type => WeaponType.Missile;
     public override string DisplayName => "Missile";
     public override WeaponUpgradeData Upgrades => _upgrades;
@@ -63,7 +66,8 @@ public class MissileGroup : Weapon
     public override bool TryUpgrade(int slot)
     {
         int maxLvl = MaxLevels[slot];
-        int cost = _upgrades.UpgradeCost(slot, BaseCosts[slot]);
+        float mult = slot == SlotLaunchers ? 1f : InstanceCostMultiplier();
+        int cost = _upgrades.UpgradeCost(slot, BaseCosts[slot], mult);
 
         if (IsDebugMode)
         {
@@ -216,7 +220,8 @@ public class MissileGroup : Weapon
         int lvl = _upgrades.GetLevel(slot);
         int maxLvl = MaxLevels[slot];
         bool maxed = maxLvl > 0 && lvl >= maxLvl;
-        int cost = _upgrades.UpgradeCost(slot, BaseCosts[slot]);
+        float mult = slot == SlotLaunchers ? 1f : InstanceCostMultiplier();
+        int cost = _upgrades.UpgradeCost(slot, BaseCosts[slot], mult);
 
         return slot switch
         {

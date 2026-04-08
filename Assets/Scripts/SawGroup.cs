@@ -36,6 +36,9 @@ public class SawGroup : Weapon
     private float _stopperRadius;
     private int _directionMultiplier = 1;
 
+    // Cost multiplier: non-blade upgrades cost more when you have more blades
+    float InstanceCostMultiplier() => 1f + (_blades.Count - 1) * 0.5f;
+
     public override WeaponType Type => WeaponType.Saw;
     public override string DisplayName => "Saw Blade";
     public override WeaponUpgradeData Upgrades => _upgrades;
@@ -69,7 +72,8 @@ public class SawGroup : Weapon
     public override bool TryUpgrade(int slot)
     {
         int maxLvl = MaxLevels[slot];
-        int cost = _upgrades.UpgradeCost(slot, BaseCosts[slot]);
+        float mult = slot == SlotBlades ? 1f : InstanceCostMultiplier();
+        int cost = _upgrades.UpgradeCost(slot, BaseCosts[slot], mult);
 
         if (IsDebugMode)
         {
@@ -222,7 +226,8 @@ public class SawGroup : Weapon
         int lvl = _upgrades.GetLevel(slot);
         int maxLvl = MaxLevels[slot];
         bool maxed = maxLvl > 0 && lvl >= maxLvl;
-        int cost = _upgrades.UpgradeCost(slot, BaseCosts[slot]);
+        float mult = slot == SlotBlades ? 1f : InstanceCostMultiplier();
+        int cost = _upgrades.UpgradeCost(slot, BaseCosts[slot], mult);
 
         return slot switch
         {
