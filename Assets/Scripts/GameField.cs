@@ -136,9 +136,12 @@ public class GameField : MonoBehaviour
 
     GameObject BuildRedLine(float y, float width, float thickness)
     {
+        // Make the death line visually prominent (at least 0.08 units tall)
+        float visualThickness = Mathf.Max(thickness, 0.08f);
+
         var go = new GameObject("RedLine");
         go.transform.position   = new Vector3(0f, y, 0f);
-        go.transform.localScale = new Vector3(width, thickness, 1f);
+        go.transform.localScale = new Vector3(width, visualThickness, 1f);
 
         var sr = go.AddComponent<SpriteRenderer>();
         sr.sprite       = WhiteSprite();
@@ -150,6 +153,16 @@ public class GameField : MonoBehaviour
         col.size      = Vector2.one;
 
         go.AddComponent<DeathLine>();
+
+        // Soft glow behind the line for visibility
+        var glow = new GameObject("RedLineGlow");
+        glow.transform.SetParent(go.transform, false);
+        glow.transform.localScale = new Vector3(1f, 3f, 1f);
+        var glowSr = glow.AddComponent<SpriteRenderer>();
+        glowSr.sprite       = WhiteSprite();
+        glowSr.color        = new Color(1f, 0f, 0f, 0.25f);
+        glowSr.sortingOrder = 9;
+
         return go;
     }
 

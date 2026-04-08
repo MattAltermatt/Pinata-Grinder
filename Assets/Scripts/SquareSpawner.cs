@@ -34,7 +34,7 @@ public class SquareSpawner : MonoBehaviour
     void Start()
     {
         _squareSprite = BuildSquareSprite();
-        _timer = spawnInterval;
+        _timer = 9999f; // ensure first pinata spawns immediately
     }
 
     private static readonly (int, int)[] Dirs = { (1, 0), (-1, 0), (0, 1), (0, -1) };
