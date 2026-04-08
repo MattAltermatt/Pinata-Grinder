@@ -1,0 +1,518 @@
+using UnityEngine;
+
+/// <summary>
+/// Configures the camera and creates the static play field:
+/// invisible side walls and the red death line at the bottom.
+/// Walls can be rebuilt at runtime via RebuildWalls() for upgrades.
+/// </summary>
+public class GameField : MonoBehaviour
+{
+    public static GameField Instance { get; private set; }
+
+    [SerializeField] private float fieldWidth      = 6f;
+    [SerializeField] private float cameraHalfHeight = 5f;
+    [SerializeField] private float stopperRadius = 0.25f;
+
+    public float FieldWidth => fieldWidth;
+    public float CameraHalfHeight => cameraHalfHeight;
+    public float StopperRadius => stopperRadius;
+
+    // Wall and line references for rebuilding
+    private GameObject _wallLeft, _wallLeftVis;
+    private GameObject _wallRight, _wallRightVis;
+    private GameObject _wallBottom, _wallBottomVis;
+    private GameObject _redLine;
+
+    void Awake()
+    {
+        if (Instance != null && Instance != this) { Destroy(this); return; }
+        Instance = this;
+
+        int weaponLayer  = LayerMask.NameToLayer("Weapon");
+        int wallLayer    = LayerMask.NameToLayer("Wall");
+        int stopperLayer = LayerMask.NameToLayer("Stopper");
+
+        Physics2D.IgnoreLayerCollision(wallLayer, weaponLayer, true);      // blades pass through walls
+        Physics2D.IgnoreLayerCollision(weaponLayer, weaponLayer, true);    // blades pass through other weapons
+        Physics2D.IgnoreLayerCollision(stopperLayer, weaponLayer, true);   // blades pass through all stoppers
+
+        SetupCamera(cameraHalfHeight);
+        BuildWalls(fieldWidth);
+
+        // Initialize economy and stopper factory
+        gameObject.AddComponent<Economy>();
+        StopperFactory.Init(fieldWidth, cameraHalfHeight, stopperRadius);
+
+        // Start with a single stopper in the center (no saw — player buys it)
+        StopperFactory.Instance.SpawnStopper(new Vector2(0f, 1f));
+
+        // UI (must come after Economy is initialized)
+        gameObject.AddComponent<EconomyUI>();
+        gameObject.AddComponent<StopperMenu>();
+
+        // Global upgrades (applies initial level-0 values, rebuilds walls to starting size)
+        gameObject.AddComponent<GlobalUpgrades>();
+        gameObject.AddComponent<GlobalUpgradesUI>();
+
+#if UNITY_EDITOR
+        gameObject.AddComponent<DebugMode>();
+#endif
+    }
+
+    static void SetupCamera(float halfHeight)
+    {
+        var cam = Camera.main;
+        if (cam == null) return;
+        cam.orthographic     = true;
+        cam.orthographicSize = halfHeight;
+    }
+
+    /// <summary>
+    /// Destroys existing walls and rebuilds them at the new field width.
+    /// Called by GlobalUpgrades when the wall size upgrade is purchased.
+    /// </summary>
+    public void RebuildWalls(float newFieldWidth)
+    {
+        DestroyWalls();
+        fieldWidth = newFieldWidth;
+        BuildWalls(newFieldWidth);
+    }
+
+    void BuildWalls(float width)
+    {
+        float wallThickness = cameraHalfHeight * 2f / Screen.height * 2f;
+
+        // Side walls
+        CreateVisibleWall("WallLeft",
+            new Vector2(-width * 0.5f - 0.5f, 0f), new Vector2(1f, 40f),
+            new Vector2(-width * 0.5f, 0f), new Vector3(wallThickness, cameraHalfHeight * 2f, 1f),
+            out _wallLeft, out _wallLeftVis);
+        CreateVisibleWall("WallRight",
+            new Vector2(width * 0.5f + 0.5f, 0f), new Vector2(1f, 40f),
+            new Vector2(width * 0.5f, 0f), new Vector3(wallThickness, cameraHalfHeight * 2f, 1f),
+            out _wallRight, out _wallRightVis);
+
+        // Bottom wall
+        float bottomWallY = -cameraHalfHeight;
+        CreateVisibleWall("WallBottom",
+            new Vector2(0f, bottomWallY - 0.5f), new Vector2(width + 2f, 1f),
+            new Vector2(0f, bottomWallY), new Vector3(width, wallThickness, 1f),
+            out _wallBottom, out _wallBottomVis);
+
+        // Death line sits just above the bottom wall
+        _redLine = BuildRedLine(bottomWallY + wallThickness, width, wallThickness);
+    }
+
+    void DestroyWalls()
+    {
+        if (_wallLeft != null) Destroy(_wallLeft);
+        if (_wallLeftVis != null) Destroy(_wallLeftVis);
+        if (_wallRight != null) Destroy(_wallRight);
+        if (_wallRightVis != null) Destroy(_wallRightVis);
+        if (_wallBottom != null) Destroy(_wallBottom);
+        if (_wallBottomVis != null) Destroy(_wallBottomVis);
+        if (_redLine != null) Destroy(_redLine);
+    }
+
+    void CreateVisibleWall(string wallName, Vector2 colliderPos, Vector2 colliderSize,
+                            Vector2 visualPos, Vector3 visualScale,
+                            out GameObject colliderGo, out GameObject visualGo)
+    {
+        colliderGo = new GameObject(wallName);
+        colliderGo.transform.position = colliderPos;
+        colliderGo.layer = LayerMask.NameToLayer("Wall");
+        colliderGo.AddComponent<BoxCollider2D>().size = colliderSize;
+
+        visualGo = new GameObject(wallName + "Visual");
+        visualGo.transform.position   = (Vector3)visualPos;
+        visualGo.transform.localScale = visualScale;
+        var sr = visualGo.AddComponent<SpriteRenderer>();
+        sr.sprite       = WhiteSprite();
+        sr.color        = Color.white;
+        sr.sortingOrder = 10;
+    }
+
+    GameObject BuildRedLine(float y, float width, float thickness)
+    {
+        var go = new GameObject("RedLine");
+        go.transform.position   = new Vector3(0f, y, 0f);
+        go.transform.localScale = new Vector3(width, thickness, 1f);
+
+        var sr = go.AddComponent<SpriteRenderer>();
+        sr.sprite       = WhiteSprite();
+        sr.color        = Color.red;
+        sr.sortingOrder = 10;
+
+        var col = go.AddComponent<BoxCollider2D>();
+        col.isTrigger = true;
+        col.size      = Vector2.one;
+
+        go.AddComponent<DeathLine>();
+        return go;
+    }
+
+    // ── Procedural sprite generators ──
+
+    public static Sprite CircleSprite(int res = 128)
+    {
+        var tex    = new Texture2D(res, res);
+        tex.filterMode = FilterMode.Bilinear;
+        var pixels = new Color[res * res];
+        float center = res * 0.5f;
+        float r2     = (center - 1f) * (center - 1f);
+        for (int y = 0; y < res; y++)
+        for (int x = 0; x < res; x++)
+        {
+            float dx = x - center, dy = y - center;
+            pixels[y * res + x] = (dx * dx + dy * dy <= r2) ? Color.white : Color.clear;
+        }
+        tex.SetPixels(pixels);
+        tex.Apply();
+        return Sprite.Create(tex, new Rect(0, 0, res, res), new Vector2(0.5f, 0.5f), res);
+    }
+
+    public static Sprite SawSprite(int res = 128, int teeth = 10)
+    {
+        var tex = new Texture2D(res, res);
+        tex.filterMode = FilterMode.Bilinear;
+        var pixels = new Color[res * res];
+        float center = res * 0.5f;
+        float outerR = center - 1f;
+        float innerR = outerR * 0.6f;
+        float toothAngle = 2f * Mathf.PI / teeth;
+
+        for (int y = 0; y < res; y++)
+        for (int x = 0; x < res; x++)
+        {
+            float dx = x - center, dy = y - center;
+            float dist = Mathf.Sqrt(dx * dx + dy * dy);
+
+            if (dist <= innerR)
+            {
+                pixels[y * res + x] = Color.white;
+            }
+            else if (dist <= outerR)
+            {
+                float angle = Mathf.Atan2(dy, dx);
+                if (angle < 0f) angle += 2f * Mathf.PI;
+                float toothPos = (angle % toothAngle) / toothAngle;
+                float t = (dist - innerR) / (outerR - innerR);
+                float halfWidth = 0.5f * (1f - t);
+                bool inTooth = toothPos >= (0.5f - halfWidth) && toothPos <= (0.5f + halfWidth);
+                pixels[y * res + x] = inTooth ? Color.white : Color.clear;
+            }
+            else
+            {
+                pixels[y * res + x] = Color.clear;
+            }
+        }
+        tex.SetPixels(pixels);
+        tex.Apply();
+        return Sprite.Create(tex, new Rect(0, 0, res, res), new Vector2(0.5f, 0.5f), res);
+    }
+
+    public static Sprite DishSprite(int res = 128)
+    {
+        var tex = new Texture2D(res, res);
+        tex.filterMode = FilterMode.Bilinear;
+        var pixels = new Color[res * res];
+        float cx = res * 0.5f;
+        float cy = res * 0.5f;
+        float outerR = cx - 1f;
+
+        Color baseColor = new Color(0.35f, 0.35f, 0.4f);
+        Color dishColor = new Color(0.55f, 0.58f, 0.65f);
+        Color rimColor  = new Color(0.7f, 0.72f, 0.78f);
+        Color emitter   = new Color(0.9f, 0.15f, 0.1f);
+
+        float baseR = outerR * 0.35f;
+        float dishDepth = outerR * 0.3f;
+        float dishStartX = cx + baseR * 0.5f;
+
+        for (int y = 0; y < res; y++)
+        for (int x = 0; x < res; x++)
+        {
+            float dx = x - cx;
+            float dy = y - cy;
+            float dist = Mathf.Sqrt(dx * dx + dy * dy);
+            Color c = Color.clear;
+
+            if (dist <= baseR)
+                c = baseColor;
+
+            if (dist <= outerR && dx > 0f)
+            {
+                float normDy = dy / outerR;
+                float dishFront = cx + outerR;
+                float dishBack = dishFront - dishDepth * (1f - normDy * normDy * 3f);
+                float verticalExtent = outerR * 0.85f;
+                if (Mathf.Abs(dy) <= verticalExtent * (1f - (dx / outerR) * 0.3f))
+                {
+                    if (x >= dishBack && x <= dishFront && dist <= outerR)
+                    {
+                        float rimDist = dishFront - x;
+                        if (rimDist < outerR * 0.06f)
+                            c = rimColor;
+                        else
+                            c = dishColor;
+                    }
+                }
+            }
+
+            if (dx > baseR * 0.3f && dx < outerR * 0.7f && Mathf.Abs(dy) < outerR * 0.05f)
+                c = baseColor;
+
+            float emitX = cx + outerR * 0.55f;
+            float edx = x - emitX;
+            float edy = y - cy;
+            float emitR = outerR * 0.1f;
+            if (edx * edx + edy * edy <= emitR * emitR)
+                c = emitter;
+
+            pixels[y * res + x] = c;
+        }
+        tex.SetPixels(pixels);
+        tex.Apply();
+        return Sprite.Create(tex, new Rect(0, 0, res, res), new Vector2(0.5f, 0.5f), res);
+    }
+
+    public static Sprite WhiteSprite()
+    {
+        var tex    = new Texture2D(4, 4);
+        var pixels = new Color[16];
+        for (int i = 0; i < 16; i++) pixels[i] = Color.white;
+        tex.SetPixels(pixels);
+        tex.Apply();
+        return Sprite.Create(tex, new Rect(0, 0, 4, 4), new Vector2(0.5f, 0.5f), 4f);
+    }
+
+    // ── Upgrade icon sprites ──
+
+    /// <summary>
+    /// Two horizontal arrows pointing outward (← →) representing wall expansion.
+    /// </summary>
+    public static Sprite WallExpandSprite(int res = 64)
+    {
+        var tex = new Texture2D(res, res);
+        tex.filterMode = FilterMode.Bilinear;
+        var pixels = new Color[res * res];
+        float cx = res * 0.5f;
+        float cy = res * 0.5f;
+        float barHalf = res * 0.35f;
+        float barThick = res * 0.06f;
+        float headSize = res * 0.18f;
+
+        for (int y = 0; y < res; y++)
+        for (int x = 0; x < res; x++)
+        {
+            float dx = x - cx, dy = y - cy;
+            bool filled = false;
+
+            // Horizontal bar
+            if (Mathf.Abs(dx) <= barHalf && Mathf.Abs(dy) <= barThick)
+                filled = true;
+
+            // Right arrowhead: triangle at x = cx + barHalf pointing right
+            float rx = dx - barHalf;
+            if (rx >= 0f && rx <= headSize && Mathf.Abs(dy) <= headSize * (1f - rx / headSize))
+                filled = true;
+
+            // Left arrowhead: triangle at x = cx - barHalf pointing left
+            float lx = -dx - barHalf;
+            if (lx >= 0f && lx <= headSize && Mathf.Abs(dy) <= headSize * (1f - lx / headSize))
+                filled = true;
+
+            pixels[y * res + x] = filled ? Color.white : Color.clear;
+        }
+        tex.SetPixels(pixels);
+        tex.Apply();
+        return Sprite.Create(tex, new Rect(0, 0, res, res), new Vector2(0.5f, 0.5f), res);
+    }
+
+    /// <summary>
+    /// 3x3 grid of small squares representing pinata grid growth.
+    /// </summary>
+    public static Sprite GridSprite(int res = 64)
+    {
+        var tex = new Texture2D(res, res);
+        tex.filterMode = FilterMode.Bilinear;
+        var pixels = new Color[res * res];
+        float margin = res * 0.12f;
+        float usable = res - margin * 2f;
+        float cellSize = usable / 3f;
+        float gap = cellSize * 0.15f;
+
+        for (int y = 0; y < res; y++)
+        for (int x = 0; x < res; x++)
+        {
+            float lx = x - margin;
+            float ly = y - margin;
+            bool filled = false;
+
+            if (lx >= 0 && lx < usable && ly >= 0 && ly < usable)
+            {
+                float cx2 = lx % cellSize;
+                float cy2 = ly % cellSize;
+                if (cx2 > gap && cx2 < cellSize - gap && cy2 > gap && cy2 < cellSize - gap)
+                    filled = true;
+            }
+
+            pixels[y * res + x] = filled ? Color.white : Color.clear;
+        }
+        tex.SetPixels(pixels);
+        tex.Apply();
+        return Sprite.Create(tex, new Rect(0, 0, res, res), new Vector2(0.5f, 0.5f), res);
+    }
+
+    /// <summary>
+    /// Clock face with two hands representing spawn rate.
+    /// </summary>
+    public static Sprite ClockSprite(int res = 64)
+    {
+        var tex = new Texture2D(res, res);
+        tex.filterMode = FilterMode.Bilinear;
+        var pixels = new Color[res * res];
+        float cx = res * 0.5f;
+        float cy = res * 0.5f;
+        float outerR = cx - 2f;
+        float innerR = outerR * 0.85f;
+        float handThick = res * 0.04f;
+
+        for (int y = 0; y < res; y++)
+        for (int x = 0; x < res; x++)
+        {
+            float dx = x - cx, dy = y - cy;
+            float dist = Mathf.Sqrt(dx * dx + dy * dy);
+            bool filled = false;
+
+            // Circle ring
+            if (dist >= innerR && dist <= outerR)
+                filled = true;
+
+            // Center dot
+            if (dist <= res * 0.06f)
+                filled = true;
+
+            // Hour hand (short, pointing to 2 o'clock: ~60 degrees from top)
+            float hAngle = 60f * Mathf.Deg2Rad;
+            float hLen = outerR * 0.45f;
+            float hx = Mathf.Sin(hAngle), hy = Mathf.Cos(hAngle);
+            float projH = dx * hx + dy * hy;
+            float perpH = Mathf.Abs(-dx * hy + dy * hx);
+            if (projH > 0f && projH < hLen && perpH < handThick)
+                filled = true;
+
+            // Minute hand (long, pointing to 12 o'clock: straight up)
+            float mLen = outerR * 0.75f;
+            if (dy > 0f && dy < mLen && Mathf.Abs(dx) < handThick)
+                filled = true;
+
+            pixels[y * res + x] = filled ? Color.white : Color.clear;
+        }
+        tex.SetPixels(pixels);
+        tex.Apply();
+        return Sprite.Create(tex, new Rect(0, 0, res, res), new Vector2(0.5f, 0.5f), res);
+    }
+
+    /// <summary>
+    /// Heart shape representing pinata health.
+    /// </summary>
+    public static Sprite HeartSprite(int res = 64)
+    {
+        var tex = new Texture2D(res, res);
+        tex.filterMode = FilterMode.Bilinear;
+        var pixels = new Color[res * res];
+        float cx = res * 0.5f;
+        float cy = res * 0.45f;
+        float scale = res * 0.012f;
+
+        for (int y = 0; y < res; y++)
+        for (int x = 0; x < res; x++)
+        {
+            // Heart equation: (x^2 + y^2 - 1)^3 - x^2*y^3 <= 0
+            float nx = (x - cx) * scale;
+            float ny = (y - cy) * scale;
+            ny = -ny; // flip so heart points up
+            float a = nx * nx + ny * ny - 1f;
+            float v = a * a * a - nx * nx * ny * ny * ny;
+            pixels[y * res + x] = v <= 0f ? Color.white : Color.clear;
+        }
+        tex.SetPixels(pixels);
+        tex.Apply();
+        return Sprite.Create(tex, new Rect(0, 0, res, res), new Vector2(0.5f, 0.5f), res);
+    }
+
+    /// <summary>
+    /// Downward bolt/lightning shape representing death line damage.
+    /// </summary>
+    public static Sprite BoltSprite(int res = 64)
+    {
+        var tex = new Texture2D(res, res);
+        tex.filterMode = FilterMode.Bilinear;
+        var pixels = new Color[res * res];
+        float cx = res * 0.5f;
+
+        // Define a zigzag bolt as line segments, then fill pixels near them
+        float thickness = res * 0.09f;
+        // Bolt points (normalized 0-1, then scaled to res)
+        Vector2[] pts = {
+            new(0.45f, 0.9f),
+            new(0.55f, 0.55f),
+            new(0.4f,  0.55f),
+            new(0.55f, 0.1f)
+        };
+
+        for (int y = 0; y < res; y++)
+        for (int x = 0; x < res; x++)
+        {
+            float minDist = float.MaxValue;
+            for (int i = 0; i < pts.Length - 1; i++)
+            {
+                var a = pts[i] * res;
+                var b = pts[i + 1] * res;
+                float d = DistToSegment(new Vector2(x, y), a, b);
+                if (d < minDist) minDist = d;
+            }
+            pixels[y * res + x] = minDist <= thickness ? Color.white : Color.clear;
+        }
+        tex.SetPixels(pixels);
+        tex.Apply();
+        return Sprite.Create(tex, new Rect(0, 0, res, res), new Vector2(0.5f, 0.5f), res);
+    }
+
+    static float DistToSegment(Vector2 p, Vector2 a, Vector2 b)
+    {
+        var ab = b - a;
+        float t = Mathf.Clamp01(Vector2.Dot(p - a, ab) / ab.sqrMagnitude);
+        var proj = a + ab * t;
+        return Vector2.Distance(p, proj);
+    }
+
+    /// <summary>
+    /// Horizontal sine wave representing oscillation speed.
+    /// </summary>
+    public static Sprite WaveSprite(int res = 64)
+    {
+        var tex = new Texture2D(res, res);
+        tex.filterMode = FilterMode.Bilinear;
+        var pixels = new Color[res * res];
+        float cx = res * 0.5f;
+        float cy = res * 0.5f;
+        float amplitude = res * 0.3f;
+        float thickness = res * 0.08f;
+        float cycles = 2f;
+
+        for (int y = 0; y < res; y++)
+        for (int x = 0; x < res; x++)
+        {
+            float nx = (float)x / res;
+            float waveY = cy + Mathf.Sin(nx * cycles * 2f * Mathf.PI) * amplitude;
+            float dist = Mathf.Abs(y - waveY);
+
+            pixels[y * res + x] = dist <= thickness ? Color.white : Color.clear;
+        }
+        tex.SetPixels(pixels);
+        tex.Apply();
+        return Sprite.Create(tex, new Rect(0, 0, res, res), new Vector2(0.5f, 0.5f), res);
+    }
+}

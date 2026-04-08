@@ -1,0 +1,201 @@
+using System.Collections.Generic;
+using UnityEngine;
+
+/// <summary>
+/// Weapon group that manages multiple Laser instances on a single stopper.
+/// Implements 4 upgrade slots: Aim Speed, Range, Damage, Extra Lasers.
+/// Each laser targets independently. All share upgrade state.
+/// </summary>
+public class LaserGroup : Weapon
+{
+    private const int SlotAimSpeed   = 0;
+    private const int SlotRange      = 1;
+    private const int SlotDamage     = 2;
+    private const int SlotLasers     = 3;
+    private const int TotalSlots     = 4;
+
+    private static readonly int[] BaseCosts = { 5, 8, 10, 20 };
+    private static readonly int[] MaxLevels = { 20, 20, 0, 19 };
+
+    private const float StartAimSpeed = 30f;
+    private const float MaxAimSpeed   = 360f;
+    private const float StartRange    = 1f;
+    private const float StartDamage   = 1f;
+
+    private readonly List<Laser> _lasers = new();
+    private WeaponUpgradeData _upgrades;
+    private Transform _stopper;
+    private float _stopperRadius;
+
+    public override WeaponType Type => WeaponType.Laser;
+    public override string DisplayName => "Laser";
+    public override WeaponUpgradeData Upgrades => _upgrades;
+    public override int UpgradeSlotCount => TotalSlots;
+
+    public override void Init(Vector2 stopperCenter, float stopperRadius)
+    {
+        _stopperRadius = stopperRadius;
+        _upgrades = new WeaponUpgradeData(TotalSlots);
+        AddLaser();
+    }
+
+    public void SetStopper(Transform stopperTransform)
+    {
+        _stopper = stopperTransform;
+        foreach (var l in _lasers)
+            l.SetStopper(stopperTransform);
+
+        // Hide stopper sprite — laser replaces it visually
+        var sr = stopperTransform.GetComponent<SpriteRenderer>();
+        if (sr != null) sr.enabled = false;
+    }
+
+    // ── Upgrade logic ──
+
+    public override bool TryUpgrade(int slot)
+    {
+        int maxLvl = MaxLevels[slot];
+        if (maxLvl > 0 && _upgrades.GetLevel(slot) >= maxLvl) return false;
+
+        int cost = _upgrades.UpgradeCost(slot, BaseCosts[slot]);
+
+        if (Economy.Instance == null || Economy.Instance.Money < cost) return false;
+        Economy.Instance.Earn(-cost);
+
+        _upgrades.BuyUpgrade(slot, cost);
+        ApplyUpgrade(slot);
+        return true;
+    }
+
+    void ApplyUpgrade(int slot)
+    {
+        switch (slot)
+        {
+            case SlotAimSpeed: ApplyAimSpeed(); break;
+            case SlotRange:    ApplyRange(); break;
+            case SlotDamage:   ApplyDamage(); break;
+            case SlotLasers:   AddLaser(); break;
+        }
+    }
+
+    // ── Slot calculations ──
+
+    float CurrentAimSpeed()
+    {
+        int lvl = _upgrades.GetLevel(SlotAimSpeed);
+        return StartAimSpeed + lvl * ((MaxAimSpeed - StartAimSpeed) / MaxLevels[SlotAimSpeed]);
+    }
+
+    float CurrentRange()
+    {
+        int lvl = _upgrades.GetLevel(SlotRange);
+        float maxFieldWidth = GlobalUpgrades.Instance != null
+            ? GlobalUpgrades.Instance.MaxFieldWidth()
+            : 15f;
+        return StartRange + lvl * ((maxFieldWidth - StartRange) / MaxLevels[SlotRange]);
+    }
+
+    float CurrentDamage()
+    {
+        int lvl = _upgrades.GetLevel(SlotDamage);
+        return StartDamage + lvl * 0.5f;
+    }
+
+    // ── Apply to all lasers ──
+
+    void ApplyAimSpeed()
+    {
+        float spd = CurrentAimSpeed();
+        foreach (var l in _lasers) l.SetRotationSpeed(spd);
+    }
+
+    void ApplyRange()
+    {
+        float r = CurrentRange();
+        foreach (var l in _lasers) l.SetMaxRange(r);
+    }
+
+    void ApplyDamage()
+    {
+        float d = CurrentDamage();
+        foreach (var l in _lasers) l.SetDamage(d);
+    }
+
+    // ── Add laser ──
+
+    void AddLaser()
+    {
+        var go = new GameObject("Laser");
+        var laser = go.AddComponent<Laser>();
+        laser.Init(
+            _stopper != null ? (Vector2)_stopper.position : Vector2.zero,
+            _stopperRadius
+        );
+        laser.SetRotationSpeed(CurrentAimSpeed());
+        laser.SetMaxRange(CurrentRange());
+        laser.SetDamage(CurrentDamage());
+
+        if (_stopper != null)
+            laser.SetStopper(_stopper);
+
+        _lasers.Add(laser);
+    }
+
+    // ── Cleanup ──
+
+    void OnDestroy()
+    {
+        foreach (var l in _lasers)
+        {
+            if (l != null)
+                Destroy(l.gameObject);
+        }
+    }
+
+    // ── Slot info for UI ──
+
+    public override UpgradeSlotInfo GetSlotInfo(int slot)
+    {
+        int lvl = _upgrades.GetLevel(slot);
+        int maxLvl = MaxLevels[slot];
+        bool maxed = maxLvl > 0 && lvl >= maxLvl;
+        int cost = _upgrades.UpgradeCost(slot, BaseCosts[slot]);
+
+        return slot switch
+        {
+            SlotAimSpeed => new UpgradeSlotInfo
+            {
+                Name = "Aim",
+                Description = CurrentAimSpeed().ToString("F0") + " deg/s",
+                Icon = GameField.WaveSprite(64),
+                IconColor = new Color(0.4f, 0.8f, 1f),
+                Cost = cost, Level = lvl, MaxLevel = maxLvl, IsMaxed = maxed
+            },
+            SlotRange => new UpgradeSlotInfo
+            {
+                Name = "Range",
+                Description = CurrentRange().ToString("F1") + " units",
+                Icon = GameField.ClockSprite(64),
+                IconColor = new Color(0.4f, 1f, 0.4f),
+                Cost = cost, Level = lvl, MaxLevel = maxLvl, IsMaxed = maxed
+            },
+            SlotDamage => new UpgradeSlotInfo
+            {
+                Name = "Damage",
+                Description = "DPS: " + CurrentDamage().ToString("F1"),
+                Icon = GameField.BoltSprite(64),
+                IconColor = new Color(1f, 0.3f, 0.3f),
+                Cost = cost, Level = lvl, MaxLevel = maxLvl, IsMaxed = maxed
+            },
+            SlotLasers => new UpgradeSlotInfo
+            {
+                Name = "Lasers",
+                Description = "Count: " + (lvl + 1) + (maxed ? " (MAX)" : ""),
+                Icon = GameField.DishSprite(64),
+                IconColor = Color.white,
+                Cost = cost, Level = lvl, MaxLevel = maxLvl, IsMaxed = maxed
+            },
+            _ => default
+        };
+    }
+}

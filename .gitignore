@@ -1,0 +1,69 @@
+# Unity generated
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]serSettings/
+/[Mm]emoryCaptures/
+
+# Asset Store tools
+/Assets/AssetStoreTools*
+
+# Plastic SCM (no longer used)
+/Assets/Plugins/PlasticSCM*
+/.plastic/
+
+# Visual Studio / IDE
+.vs/
+.vscode/
+.idea/
+.gradle/
+.consulo/
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.tmp
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+*.pidb.meta
+*.pdb.meta
+*.mdb.meta
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Unity
+sysinfo.txt
+crashlytics-build.properties
+ExportedObj/
+~UnityDirMonSyncFile~*
+
+# Build artifacts
+*.apk
+*.aab
+*.app
+*.unitypackage
+
+# Addressables
+/Assets/AddressableAssetsData/*/*.bin*
+/Assets/StreamingAssets/aa.meta
+/Assets/StreamingAssets/*/aa/*
+
+# Private files
+*.private
+*.private.meta
+
+# Claude Code plans (session-specific)
+.claude/plans/
