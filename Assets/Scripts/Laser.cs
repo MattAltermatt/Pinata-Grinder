@@ -134,7 +134,7 @@ public class Laser : MonoBehaviour
 
         transform.position = stopper.position;
 
-        // Stagger first acquisition so multiple lasers on the same stopper don't lock on simultaneously
+        // Stagger first acquisition so laser doesn't immediately lock on at spawn
         if (!_initialDelaySet)
         {
             _initialDelaySet = true;

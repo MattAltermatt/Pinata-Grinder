@@ -1,10 +1,8 @@
-using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Weapon group that manages multiple MissileLauncher instances on a single stopper.
-/// Implements 6 upgrade slots: Fire Rate, Damage, Blast Radius, Missile Speed,
-/// Extra Launchers, Homing. Each launcher targets and fires independently.
+/// Weapon group that manages a single MissileLauncher instance on a stopper.
+/// Implements 5 upgrade slots: Fire Rate, Damage, Blast Radius, Missile Speed, Homing.
 /// </summary>
 public class MissileGroup : Weapon
 {
@@ -12,31 +10,27 @@ public class MissileGroup : Weapon
     private const int SlotDamage      = 1;
     private const int SlotBlastRadius = 2;
     private const int SlotSpeed       = 3;
-    private const int SlotLaunchers   = 4;
-    private const int SlotHoming      = 5;
-    private const int TotalSlots      = 6;
+    private const int SlotHoming      = 4;
+    private const int TotalSlots      = 5;
 
-    private static readonly int[] BaseCosts = { 8, 10, 8, 5, 25, 12 };
-    private static readonly int[] MaxLevels = { 20, 0, 20, 20, 19, 10 };
+    private static readonly int[] BaseCosts = { 8, 10, 8, 5, 12 };
+    private static readonly int[] MaxLevels = { 20, 0, 20, 20, 10 };
 
     private const float StartFireRate    = 5f;
     private const float MinFireRate      = 0.5f;
-    private const float StartDamage      = 5f;
-    private const float DamagePerLevel   = 2.5f;
-    private const float StartBlastRadius = 0.4f;
+    private const float StartDamage      = 2f;
+    private const float DamagePerLevel   = 1.5f;
+    private const float StartBlastRadius = 0.3f;
     private const float MaxBlastRadius   = 1.5f;
     private const float StartSpeed       = 1.5f;
     private const float MaxSpeed         = 6f;
     private const float StartHoming      = 0f;
     private const float MaxHoming        = 5f;
 
-    private readonly List<MissileLauncher> _launchers = new();
+    private MissileLauncher _launcher;
     private WeaponUpgradeData _upgrades;
     private Transform _stopper;
     private float _stopperRadius;
-
-    // Cost multiplier: non-launcher upgrades cost more when you have more launchers
-    float InstanceCostMultiplier() => 1f + (_launchers.Count - 1) * 0.5f;
 
     public override WeaponType Type => WeaponType.Missile;
     public override string DisplayName => "Missile";
@@ -47,14 +41,14 @@ public class MissileGroup : Weapon
     {
         _stopperRadius = stopperRadius;
         _upgrades = new WeaponUpgradeData(TotalSlots);
-        AddLauncher();
+        CreateLauncher();
     }
 
     public void SetStopper(Transform stopperTransform)
     {
         _stopper = stopperTransform;
-        foreach (var l in _launchers)
-            l.SetStopper(stopperTransform);
+        if (_launcher != null)
+            _launcher.SetStopper(stopperTransform);
 
         // Hide stopper sprite — launcher replaces it visually
         var sr = stopperTransform.GetComponent<SpriteRenderer>();
@@ -66,8 +60,7 @@ public class MissileGroup : Weapon
     public override bool TryUpgrade(int slot)
     {
         int maxLvl = MaxLevels[slot];
-        float mult = slot == SlotLaunchers ? 1f : InstanceCostMultiplier();
-        int cost = _upgrades.UpgradeCost(slot, BaseCosts[slot], mult);
+        int cost = _upgrades.UpgradeCost(slot, BaseCosts[slot]);
 
         if (IsDebugMode)
         {
@@ -93,7 +86,6 @@ public class MissileGroup : Weapon
             case SlotDamage:      ApplyDamage(); break;
             case SlotBlastRadius: ApplyBlastRadius(); break;
             case SlotSpeed:       ApplySpeed(); break;
-            case SlotLaunchers:   AddLauncher(); break;
             case SlotHoming:      ApplyHoming(); break;
         }
     }
@@ -134,54 +126,47 @@ public class MissileGroup : Weapon
 
     void ApplyFireRate()
     {
-        float interval = CurrentFireInterval();
-        foreach (var l in _launchers) l.SetFireInterval(interval);
+        if (_launcher != null) _launcher.SetFireInterval(CurrentFireInterval());
     }
 
     void ApplyDamage()
     {
-        float d = CurrentDamage();
-        foreach (var l in _launchers) l.SetDamage(d);
+        if (_launcher != null) _launcher.SetDamage(CurrentDamage());
     }
 
     void ApplyBlastRadius()
     {
-        float r = CurrentBlastRadius();
-        foreach (var l in _launchers) l.SetBlastRadius(r);
+        if (_launcher != null) _launcher.SetBlastRadius(CurrentBlastRadius());
     }
 
     void ApplySpeed()
     {
-        float s = CurrentSpeed();
-        foreach (var l in _launchers) l.SetMissileSpeed(s);
+        if (_launcher != null) _launcher.SetMissileSpeed(CurrentSpeed());
     }
 
     void ApplyHoming()
     {
-        float h = CurrentHoming();
-        foreach (var l in _launchers) l.SetHomingStrength(h);
+        if (_launcher != null) _launcher.SetHomingStrength(CurrentHoming());
     }
 
-    // ── Add launcher ──
+    // ── Create launcher ──
 
-    void AddLauncher()
+    void CreateLauncher()
     {
         var go = new GameObject("MissileLauncher");
-        var launcher = go.AddComponent<MissileLauncher>();
-        launcher.Init(
+        _launcher = go.AddComponent<MissileLauncher>();
+        _launcher.Init(
             _stopper != null ? (Vector2)_stopper.position : Vector2.zero,
             _stopperRadius
         );
-        launcher.SetFireInterval(CurrentFireInterval());
-        launcher.SetDamage(CurrentDamage());
-        launcher.SetBlastRadius(CurrentBlastRadius());
-        launcher.SetMissileSpeed(CurrentSpeed());
-        launcher.SetHomingStrength(CurrentHoming());
+        _launcher.SetFireInterval(CurrentFireInterval());
+        _launcher.SetDamage(CurrentDamage());
+        _launcher.SetBlastRadius(CurrentBlastRadius());
+        _launcher.SetMissileSpeed(CurrentSpeed());
+        _launcher.SetHomingStrength(CurrentHoming());
 
         if (_stopper != null)
-            launcher.SetStopper(_stopper);
-
-        _launchers.Add(launcher);
+            _launcher.SetStopper(_stopper);
     }
 
     // ── Restore from save ──
@@ -190,10 +175,6 @@ public class MissileGroup : Weapon
     {
         if (levels == null) return;
         _upgrades.RestoreState(levels, totalInvestment);
-
-        // Init() already added 1 launcher; add extras for the saved launchers level
-        for (int i = 0; i < levels[SlotLaunchers]; i++)
-            AddLauncher();
 
         ApplyFireRate();
         ApplyDamage();
@@ -206,11 +187,8 @@ public class MissileGroup : Weapon
 
     void OnDestroy()
     {
-        foreach (var l in _launchers)
-        {
-            if (l != null)
-                Destroy(l.gameObject);
-        }
+        if (_launcher != null)
+            Destroy(_launcher.gameObject);
     }
 
     // ── Slot info for UI ──
@@ -220,8 +198,7 @@ public class MissileGroup : Weapon
         int lvl = _upgrades.GetLevel(slot);
         int maxLvl = MaxLevels[slot];
         bool maxed = maxLvl > 0 && lvl >= maxLvl;
-        float mult = slot == SlotLaunchers ? 1f : InstanceCostMultiplier();
-        int cost = _upgrades.UpgradeCost(slot, BaseCosts[slot], mult);
+        int cost = _upgrades.UpgradeCost(slot, BaseCosts[slot]);
 
         return slot switch
         {
@@ -255,14 +232,6 @@ public class MissileGroup : Weapon
                 Description = CurrentSpeed().ToString("F1") + " u/s",
                 Icon = GameField.WaveSprite(64),
                 IconColor = new Color(0.4f, 0.8f, 1f),
-                Cost = cost, Level = lvl, MaxLevel = maxLvl, IsMaxed = maxed
-            },
-            SlotLaunchers => new UpgradeSlotInfo
-            {
-                Name = "Launchers",
-                Description = "Count: " + (lvl + 1) + (maxed ? " (MAX)" : ""),
-                Icon = GameField.MissileLauncherSprite(64),
-                IconColor = Color.white,
                 Cost = cost, Level = lvl, MaxLevel = maxLvl, IsMaxed = maxed
             },
             SlotHoming => new UpgradeSlotInfo

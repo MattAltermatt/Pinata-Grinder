@@ -1,22 +1,19 @@
-using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Weapon group that manages multiple Laser instances on a single stopper.
-/// Implements 5 upgrade slots: Aim Speed, Range, Damage, Extra Lasers, Cooldown.
-/// Each laser targets independently. All share upgrade state.
+/// Weapon group that manages a single Laser instance on a stopper.
+/// Implements 4 upgrade slots: Aim Speed, Range, Damage, Cooldown.
 /// </summary>
 public class LaserGroup : Weapon
 {
     private const int SlotAimSpeed   = 0;
     private const int SlotRange      = 1;
     private const int SlotDamage     = 2;
-    private const int SlotLasers     = 3;
-    private const int SlotCooldown   = 4;
-    private const int TotalSlots     = 5;
+    private const int SlotCooldown   = 3;
+    private const int TotalSlots     = 4;
 
-    private static readonly int[] BaseCosts = { 5, 8, 10, 20, 8 };
-    private static readonly int[] MaxLevels = { 20, 20, 0, 19, 20 };
+    private static readonly int[] BaseCosts = { 5, 8, 10, 8 };
+    private static readonly int[] MaxLevels = { 20, 20, 0, 20 };
 
     private const float StartAimSpeed = 30f;
     private const float MaxAimSpeed   = 360f;
@@ -25,13 +22,10 @@ public class LaserGroup : Weapon
     private const float StartCooldown = 3f;
     private const float MinCooldown   = 0.1f;
 
-    private readonly List<Laser> _lasers = new();
+    private Laser _laser;
     private WeaponUpgradeData _upgrades;
     private Transform _stopper;
     private float _stopperRadius;
-
-    // Cost multiplier: non-laser upgrades cost more when you have more lasers
-    float InstanceCostMultiplier() => 1f + (_lasers.Count - 1) * 0.5f;
 
     public override WeaponType Type => WeaponType.Laser;
     public override string DisplayName => "Laser";
@@ -42,14 +36,14 @@ public class LaserGroup : Weapon
     {
         _stopperRadius = stopperRadius;
         _upgrades = new WeaponUpgradeData(TotalSlots);
-        AddLaser();
+        CreateLaser();
     }
 
     public void SetStopper(Transform stopperTransform)
     {
         _stopper = stopperTransform;
-        foreach (var l in _lasers)
-            l.SetStopper(stopperTransform);
+        if (_laser != null)
+            _laser.SetStopper(stopperTransform);
 
         // Hide stopper sprite — laser replaces it visually
         var sr = stopperTransform.GetComponent<SpriteRenderer>();
@@ -61,8 +55,7 @@ public class LaserGroup : Weapon
     public override bool TryUpgrade(int slot)
     {
         int maxLvl = MaxLevels[slot];
-        float mult = slot == SlotLasers ? 1f : InstanceCostMultiplier();
-        int cost = _upgrades.UpgradeCost(slot, BaseCosts[slot], mult);
+        int cost = _upgrades.UpgradeCost(slot, BaseCosts[slot]);
 
         if (IsDebugMode)
         {
@@ -87,7 +80,6 @@ public class LaserGroup : Weapon
             case SlotAimSpeed: ApplyAimSpeed(); break;
             case SlotRange:    ApplyRange(); break;
             case SlotDamage:   ApplyDamage(); break;
-            case SlotLasers:   AddLaser(); break;
             case SlotCooldown: ApplyCooldown(); break;
         }
     }
@@ -125,47 +117,41 @@ public class LaserGroup : Weapon
 
     void ApplyAimSpeed()
     {
-        float spd = CurrentAimSpeed();
-        foreach (var l in _lasers) l.SetRotationSpeed(spd);
+        if (_laser != null) _laser.SetRotationSpeed(CurrentAimSpeed());
     }
 
     void ApplyRange()
     {
-        float r = CurrentRange();
-        foreach (var l in _lasers) l.SetMaxRange(r);
+        if (_laser != null) _laser.SetMaxRange(CurrentRange());
     }
 
     void ApplyDamage()
     {
-        float d = CurrentDamage();
-        foreach (var l in _lasers) l.SetDamage(d);
+        if (_laser != null) _laser.SetDamage(CurrentDamage());
     }
 
     void ApplyCooldown()
     {
-        float cd = CurrentCooldown();
-        foreach (var l in _lasers) l.SetCooldown(cd);
+        if (_laser != null) _laser.SetCooldown(CurrentCooldown());
     }
 
-    // ── Add laser ──
+    // ── Create laser ──
 
-    void AddLaser()
+    void CreateLaser()
     {
         var go = new GameObject("Laser");
-        var laser = go.AddComponent<Laser>();
-        laser.Init(
+        _laser = go.AddComponent<Laser>();
+        _laser.Init(
             _stopper != null ? (Vector2)_stopper.position : Vector2.zero,
             _stopperRadius
         );
-        laser.SetRotationSpeed(CurrentAimSpeed());
-        laser.SetMaxRange(CurrentRange());
-        laser.SetDamage(CurrentDamage());
-        laser.SetCooldown(CurrentCooldown());
+        _laser.SetRotationSpeed(CurrentAimSpeed());
+        _laser.SetMaxRange(CurrentRange());
+        _laser.SetDamage(CurrentDamage());
+        _laser.SetCooldown(CurrentCooldown());
 
         if (_stopper != null)
-            laser.SetStopper(_stopper);
-
-        _lasers.Add(laser);
+            _laser.SetStopper(_stopper);
     }
 
     // ── Restore from save ──
@@ -174,10 +160,6 @@ public class LaserGroup : Weapon
     {
         if (levels == null) return;
         _upgrades.RestoreState(levels, totalInvestment);
-
-        // Init() already added 1 laser; add extras for the saved lasers level
-        for (int i = 0; i < levels[SlotLasers]; i++)
-            AddLaser();
 
         ApplyAimSpeed();
         ApplyRange();
@@ -189,11 +171,8 @@ public class LaserGroup : Weapon
 
     void OnDestroy()
     {
-        foreach (var l in _lasers)
-        {
-            if (l != null)
-                Destroy(l.gameObject);
-        }
+        if (_laser != null)
+            Destroy(_laser.gameObject);
     }
 
     // ── Slot info for UI ──
@@ -203,8 +182,7 @@ public class LaserGroup : Weapon
         int lvl = _upgrades.GetLevel(slot);
         int maxLvl = MaxLevels[slot];
         bool maxed = maxLvl > 0 && lvl >= maxLvl;
-        float mult = slot == SlotLasers ? 1f : InstanceCostMultiplier();
-        int cost = _upgrades.UpgradeCost(slot, BaseCosts[slot], mult);
+        int cost = _upgrades.UpgradeCost(slot, BaseCosts[slot]);
 
         return slot switch
         {
@@ -230,14 +208,6 @@ public class LaserGroup : Weapon
                 Description = "DPS: " + CurrentDamage().ToString("F1"),
                 Icon = GameField.BoltSprite(64),
                 IconColor = new Color(1f, 0.3f, 0.3f),
-                Cost = cost, Level = lvl, MaxLevel = maxLvl, IsMaxed = maxed
-            },
-            SlotLasers => new UpgradeSlotInfo
-            {
-                Name = "Lasers",
-                Description = "Count: " + (lvl + 1) + (maxed ? " (MAX)" : ""),
-                Icon = GameField.DishSprite(64),
-                IconColor = Color.white,
                 Cost = cost, Level = lvl, MaxLevel = maxLvl, IsMaxed = maxed
             },
             SlotCooldown => new UpgradeSlotInfo

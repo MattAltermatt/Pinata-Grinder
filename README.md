@@ -30,7 +30,7 @@ Each stopper holds one weapon. Buy more stoppers (top-left button) to field more
 
 ### Upgrades
 
-**Weapon upgrades** — Tap a stopper that already has a weapon to open the upgrade menu. Each weapon has 5-6 upgrade slots (extra blades, damage, range, fire rate, etc.). Upgrades cost money and have individual max levels.
+**Weapon upgrades** — Tap a stopper that already has a weapon to open the upgrade menu. Each weapon has 4-5 upgrade slots (blades, damage, range, fire rate, etc.). Upgrades cost money and have individual max levels.
 
 **Global upgrades** — The "Upgrades" button (top-left, below Buy Stopper) opens a panel with 6 upgrades that affect the entire game:
 

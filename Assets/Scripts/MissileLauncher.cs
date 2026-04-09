@@ -49,7 +49,7 @@ public class MissileLauncher : MonoBehaviour
         if (!initialized || stopper == null) return;
         transform.position = stopper.position;
 
-        // Stagger first shot so multiple launchers on the same stopper don't fire in sync
+        // Stagger first shot so launcher doesn't immediately fire at spawn
         if (!_initialDelaySet)
         {
             _initialDelaySet = true;

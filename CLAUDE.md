@@ -104,10 +104,10 @@ formula becomes `max(1, round(maxHealth × 2 × rewardMult))`.
 | `WeaponUpgradeData.cs` | Plain C# class tracking per-weapon upgrade levels and total investment for sell price |
 | `UpgradeSlotInfo.cs` | Struct with upgrade slot UI info (name, description, icon, cost, level, maxLevel) |
 | `SawGroup.cs` | Weapon group managing multiple `SawBlade` instances; 5 upgrade slots (blades, speed, size, torque, damage) |
-| `LaserGroup.cs` | Weapon group managing multiple `Laser` instances; 5 upgrade slots (aim speed, range, damage, extra lasers, cooldown) |
+| `LaserGroup.cs` | Weapon group managing a single `Laser` instance; 4 upgrade slots (aim speed, range, damage, cooldown) |
 | `SawBlade.cs` | Single saw blade instance (MonoBehaviour, not Weapon); orbits stopper, damages on contact; configurable via setters |
 | `Laser.cs` | Single laser turret instance (MonoBehaviour, not Weapon); gradual rotation, angular targeting preference; configurable via setters |
-| `MissileGroup.cs` | Weapon group managing multiple `MissileLauncher` instances; 6 upgrade slots (fire rate, damage, blast radius, speed, extra launchers, homing) |
+| `MissileGroup.cs` | Weapon group managing a single `MissileLauncher` instance; 5 upgrade slots (fire rate, damage, blast radius, speed, homing) |
 | `MissileLauncher.cs` | Single launcher turret instance (MonoBehaviour, not Weapon); lead targeting via quadratic intercept; fires `Missile` projectiles |
 | `Missile.cs` | Fire-and-forget AOE projectile; homing, proximity detonation, smoke trail, explosion VFX; self-destructs after 10s |
 | `Stopper.cs` | Stopper component; tracks `Weapon` reference (polymorphic), opens `StopperMenu` on click |
@@ -116,8 +116,8 @@ formula becomes `max(1, round(maxHealth × 2 × rewardMult))`.
 | `EconomyUI.cs` | Creates Canvas (Screen Space Overlay) + EventSystem; money label (top-center), buy-stopper button (top-left), options button (bottom-left) with overlay (save + restart); uses `FindClearSpawnPos` for placement |
 | `SaveData.cs` | `[Serializable]` data classes for JSON save/load: `SaveData`, `GlobalUpgradesSaveData`, `StopperSaveData` |
 | `SaveManager.cs` | Singleton handling save/load/delete to `Application.persistentDataPath/save.json`; auto-saves every 5 minutes; `DeleteSave()` for restart; fires `OnSaved` event for UI indicator; WebGL IndexedDB flush |
-| `StopperMenu.cs` | Popup panel near clicked stopper; no weapon: shows buy-saw, buy-laser, and sell-stopper rows; has weapon: shows full-screen upgrade overlay with per-upgrade buttons + sell |
-| `StopperFactory.cs` | Plain C# class (not MonoBehaviour); `SpawnStopper`, `AttachSaw` (creates SawGroup), `AttachLaser` (creates LaserGroup), `DetachWeapon`, `DestroyStopper`, `FindClearSpawnPos` |
+| `StopperMenu.cs` | Popup panel near clicked stopper; no weapon: shows buy-saw, buy-laser, buy-missile, and sell-stopper rows; has weapon: shows full-screen upgrade overlay with per-upgrade buttons + sell |
+| `StopperFactory.cs` | Plain C# class (not MonoBehaviour); `SpawnStopper`, `AttachSaw` (creates SawGroup), `AttachLaser` (creates LaserGroup), `AttachMissile` (creates MissileGroup), `DetachWeapon`, `DestroyStopper`, `FindClearSpawnPos` |
 | `ConfettiBurst.cs` | Spawns a one-shot `ParticleSystem` burst (15 particles), tinted to match the destroyed square |
 | `DeathLine.cs` | Marker `MonoBehaviour` on the red death-line trigger collider |
 | `PinataVariant.cs` | `DamageType` enum (Physical, Energy, Explosive), `PinataVariantType` enum, `PinataVariantDef` struct, `PinataVariantDefs` static data class with variant definitions |
@@ -143,8 +143,8 @@ WallBottom            — BoxCollider2D (Wall layer), off-screen
 WallBottomVisual      — SpriteRenderer, 2px white line at screen bottom
 RedLine               — SpriteRenderer (red) + BoxCollider2D (trigger) + DeathLine, just above bottom wall
 Stopper (×1 start)    — CircleCollider2D + Kinematic Rigidbody2D + Draggable + Stopper, dark grey, centered at (0, 1)
-SawBlade (×0 start)   — purchased per-stopper; CircleCollider2D + Dynamic Rigidbody2D, silver saw-tooth sprite (Weapon layer, sortingOrder 4)
-Laser (×0 start)      — purchased per-stopper; satellite dish sprite, LineRenderer beam, dish/hit sparkle ParticleSystems (Weapon layer, sortingOrder 4)
+SawBlade (×0 start)   — purchased per-stopper; CircleCollider2D + Dynamic Rigidbody2D, silver saw-tooth sprite (Weapon layer, sortingOrder 3)
+Laser (×0 start)      — purchased per-stopper; satellite dish sprite (sortingOrder 4), LineRenderer beam (sortingOrder 3), dish/hit sparkle ParticleSystems (Weapon layer)
 MissileLauncher (×0)  — purchased per-stopper; tube/pod sprite (Weapon layer, sortingOrder 4); fires Missile projectiles
 Missile(s)            — fire-and-forget projectiles (Weapon layer, sortingOrder 3); smoke trail ParticleSystem; explode on proximity
 Pinata(s)             — spawned periodically, parent with Rigidbody2D + Pinata component
@@ -231,45 +231,44 @@ new stoppers don't overlap existing ones.
 
 ### Weapon Groups
 
-`SawGroup` and `LaserGroup` extend `Weapon` and manage lists of child instances.
-Individual `SawBlade` and `Laser` are plain MonoBehaviours (not `Weapon` subclasses).
-Each group owns a `WeaponUpgradeData` that tracks per-instance upgrade levels and total
+`SawGroup` extends `Weapon` and manages a list of child `SawBlade` instances.
+`LaserGroup` and `MissileGroup` extend `Weapon` and each manage a single child instance.
+Individual `SawBlade`, `Laser`, and `MissileLauncher` are plain MonoBehaviours (not `Weapon` subclasses).
+Each group owns a `WeaponUpgradeData` that tracks per-weapon upgrade levels and total
 money invested (base cost + all upgrade costs). Sell price = `TotalInvestment`.
 
-**Instance-scaled upgrade costs**: Non-instance upgrade slots (damage, speed, range, etc.)
-cost more when a stopper has more deployed instances. Formula:
-`baseCost × 1.6^level × (1 + (instanceCount - 1) × 0.5)`. The instance slot itself
-(Extra Blades/Lasers/Launchers) is unaffected to avoid circular scaling. Example: with
-5 lasers, a damage upgrade costs 3× its base-level price.
+**Instance-scaled upgrade costs** (SawGroup only): Non-instance upgrade slots (damage,
+speed, size, etc.) cost more when a stopper has more deployed blades. Formula:
+`baseCost × 1.6^level × (1 + (bladeCount - 1) × 0.5)`. The Blades slot itself
+is unaffected to avoid circular scaling. Lasers and missiles are limited to a single
+instance per stopper and do not use instance scaling.
 
 ### SawBlade (via SawGroup)
 
 - Starts with 1 blade at reduced stats (speed 30, radius 0.10, mass 5, damage 1)
-- **5 upgrade slots**: Extra Blades ($15, max 19→20 blades), Orbit Speed ($5, max 20,
+- **5 upgrade slots**: Blades ($15, max 19→20 blades), Orbit Speed ($5, max 20,
   30→360 deg/s), Blade Size ($8, max 20, 0.10→0.25), Torque ($5, max 20, mass 5→100),
   Damage ($10, unlimited, 1+0.5×level)
-- Adding blades: `Physics2D.IgnoreCollision` with stopper + all existing blades;
-  angles redistributed equidistantly via `SetAngle(i * 360/count)`
+- Adding blades: angles redistributed equidistantly via `SetAngle(i * 360/count)`;
+  layer-level collision ignores (Weapon ↔ Weapon, Weapon ↔ Stopper) handle all avoidance
 - **Direction toggle**: free button in upgrade overlay; flips `_directionMultiplier`
   (1 or -1) which multiplies orbit speed, reversing CW↔CCW. Virtual methods on
   `Weapon` base: `HasDirectionToggle`, `IsClockwise`, `ToggleDirection()`
 
 ### Laser (via LaserGroup)
 
-- Starts with 1 laser at reduced stats (aim speed 30 deg/s, range 1.5, DPS 1)
+- Single laser per stopper at reduced stats (aim speed 30 deg/s, range 1.5, DPS 1)
 - **Gradual rotation**: uses `Quaternion.RotateTowards` instead of instant snap;
   only fires when within 15° of target (aim error threshold)
 - **Angular targeting**: `AcquireTarget()` scores by distance + angular proximity
   to current aim direction, preferring targets it can reach faster
-- **5 upgrade slots**: Aim Speed ($5, max 20, 30→360 deg/s), Range ($8, max 20,
-  1→fieldWidth), Damage ($10, unlimited, 1+0.5×level), Extra Lasers ($20, max 19→20),
+- **4 upgrade slots**: Aim Speed ($5, max 20, 30→360 deg/s), Range ($8, max 20,
+  1→fieldWidth), Damage ($10, unlimited, 1+0.5×level),
   Cooldown ($8, max 20, 3s→0.1s)
-- Each laser targets independently with its own beam and particles; initial cooldown
-  is staggered randomly (0 to cooldownDuration) so multiple lasers don't all lock on simultaneously
 
 ### Missile (via MissileGroup)
 
-- Starts with 1 launcher at reduced stats (fire rate 5s, speed 1.5, damage 5, blast 0.4, no homing)
+- Single launcher per stopper at reduced stats (fire rate 5s, speed 1.5, damage 2, blast 0.3, no homing)
 - **Lead targeting**: `MissileLauncher.ComputeLeadDirection()` solves quadratic intercept
   equation using target's `Rigidbody2D.linearVelocity` to predict where the pinata will be
 - **Homing**: upgradeable; missiles curve toward target via `Vector2.Lerp(_direction, toTarget, strength * dt)`
@@ -280,18 +279,16 @@ cost more when a stopper has more deployed instances. Formula:
   `transform.position +=`, self-destructs after 10s or 20 units offscreen
 - **VFX**: smoke/fire trail (ParticleSystem, detached on detonation to fade),
   orange/red explosion burst (15 particles, 2s self-destruct)
-- **6 upgrade slots**: Fire Rate ($8, max 20, 5s→0.5s), Damage ($10, unlimited,
-  5+2.5×level), Blast Radius ($8, max 20, 0.4→1.5), Missile Speed ($5, max 20,
-  1.5→6 u/s), Extra Launchers ($25, max 19→20), Homing ($12, max 10, 0→5 rad/s)
-- Each launcher targets and fires independently; initial fire timing is staggered
-  randomly (0 to fireInterval) so multiple launchers on the same stopper don't fire in sync
+- **5 upgrade slots**: Fire Rate ($8, max 20, 5s→0.5s), Damage ($10, unlimited,
+  2+1.5×level), Blast Radius ($8, max 20, 0.3→1.5), Missile Speed ($5, max 20,
+  1.5→6 u/s), Homing ($12, max 10, 0→5 rad/s)
 - **Economy**: $60 base cost (premium tier), exponential pricing ($60→$96→$154...)
 
 ### Radial Upgrade Menu
 
 When clicking a stopper with a weapon, StopperMenu displays a radial dial:
 - Top: weapon name; Bottom: sell button with total investment refund
-- N upgrade buttons arranged in a ring (radius 130px, each 85×85px)
+- 4–5 upgrade buttons arranged in a ring (4 for Laser, 5 for Saw/Missile; radius 130px, each 85×85px)
 - Each button shows: icon, name, level indicator, cost
 - Colors: affordable=dark blue, can't afford=red, maxed=gold
 - Debug mode (spacebar in editor, `#if UNITY_EDITOR` only): **ALL** upgrade buttons
@@ -463,7 +460,7 @@ All UI is built procedurally in `EconomyUI.Awake()` — no prefabs or editor-pla
 - **Buy Stopper button**: Top-left (20px inset), 140×140, dark panel with stopper circle
   icon + cost label. Grays out and becomes non-interactable when unaffordable.
 - **StopperMenu**: Two modes: (1) no weapon — small popup panel near stopper with
-  buy-saw, buy-laser, and sell-stopper rows; (2) has weapon — full-screen upgrade overlay
+  buy-saw, buy-laser, buy-missile, and sell-stopper rows; (2) has weapon — full-screen upgrade overlay
   (matching GlobalUpgrades style) with weapon name, per-upgrade rows (icon + name +
   description + buy button or SOLD OUT), and sell button showing total investment refund.
   Buy panel hides on click outside; upgrade overlay hides via close button (X).
