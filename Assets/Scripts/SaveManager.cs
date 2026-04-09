@@ -42,7 +42,7 @@ public class SaveManager : MonoBehaviour
         Economy.Instance.CaptureState(
             out data.money, out data.sawsPurchased,
             out data.stoppersPurchased, out data.lasersPurchased,
-            out data.missilesPurchased);
+            out data.missilesPurchased, out data.blackHolesPurchased);
 
         // Global upgrades
         if (GlobalUpgrades.Instance != null)

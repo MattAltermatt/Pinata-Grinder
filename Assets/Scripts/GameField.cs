@@ -56,7 +56,7 @@ public class GameField : MonoBehaviour
             Economy.Instance.RestoreState(
                 saveData.money, saveData.sawsPurchased,
                 saveData.stoppersPurchased, saveData.lasersPurchased,
-                saveData.missilesPurchased);
+                saveData.missilesPurchased, saveData.blackHolesPurchased);
 
             // Restore stoppers and their weapons
             foreach (var sd in saveData.stoppers)
@@ -78,6 +78,11 @@ public class GameField : MonoBehaviour
                 else if (sd.weaponType == (int)WeaponType.Missile)
                 {
                     var group = StopperFactory.Instance.AttachMissile(stopper);
+                    group.RestoreUpgrades(sd.upgradeLevels, sd.totalInvestment);
+                }
+                else if (sd.weaponType == (int)WeaponType.BlackHole)
+                {
+                    var group = StopperFactory.Instance.AttachBlackHole(stopper);
                     group.RestoreUpgrades(sd.upgradeLevels, sd.totalInvestment);
                 }
             }

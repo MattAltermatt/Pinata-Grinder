@@ -16,6 +16,8 @@ public class MissileLauncher : MonoBehaviour
     private float _blastRadius = 0.4f;
     private float _missileSpeed = 1.5f;
     private float _homingStrength = 0f;
+    private float _minRange = 1.5f;
+    private float _maxRange = 4f;
 
     private Pinata _target;
     private float _reloadTimer;
@@ -43,6 +45,8 @@ public class MissileLauncher : MonoBehaviour
     public void SetBlastRadius(float r) => _blastRadius = r;
     public void SetMissileSpeed(float spd) => _missileSpeed = spd;
     public void SetHomingStrength(float str) => _homingStrength = str;
+    public void SetMinRange(float range) => _minRange = range;
+    public void SetMaxRange(float range) => _maxRange = range;
 
     void Update()
     {
@@ -72,8 +76,16 @@ public class MissileLauncher : MonoBehaviour
 
         if (_target == null) return;
 
-        // Compute lead targeting intercept direction toward center of mass
-        Vector2 interceptDir = ComputeLeadDirection();
+        // Drop target if it moves outside the engagement zone
+        Vector2 targetCenter = _target.CenterOfMass();
+        float targetDist2 = ((Vector2)targetCenter - (Vector2)transform.position).sqrMagnitude;
+        if (targetDist2 < _minRange * _minRange || targetDist2 > _maxRange * _maxRange)
+        {
+            _target = null;
+            return;
+        }
+
+        Vector2 interceptDir = ComputeLeadDirection(targetCenter);
 
         // Rotate launcher toward intercept point
         float targetAngle = Mathf.Atan2(interceptDir.y, interceptDir.x) * Mathf.Rad2Deg;
@@ -93,13 +105,20 @@ public class MissileLauncher : MonoBehaviour
         float bestScore = float.MaxValue;
         Pinata best = null;
         Vector2 aimDir = transform.right;
+        float minRange2 = _minRange * _minRange;
+        float maxRange2 = _maxRange * _maxRange;
 
         for (int i = 0; i < pinatas.Count; i++)
         {
             if (pinatas[i].AliveCount == 0) continue;
             Vector2 center = pinatas[i].CenterOfMass();
             Vector2 toTarget = center - (Vector2)transform.position;
-            float dist = toTarget.magnitude;
+            float dist2 = toTarget.sqrMagnitude;
+
+            // Skip targets outside the engagement zone
+            if (dist2 < minRange2 || dist2 > maxRange2) continue;
+
+            float dist = Mathf.Sqrt(dist2);
             float angleDiff = Vector2.Angle(aimDir, toTarget.normalized);
             // Prefer larger pinatas (more squares = higher value target) and closer ones
             float sizeBonus = pinatas[i].AliveCount * 0.1f;
@@ -118,10 +137,9 @@ public class MissileLauncher : MonoBehaviour
     /// Solves the quadratic intercept equation to predict where the target will be
     /// when the missile arrives. Falls back to direct aim if no solution exists.
     /// </summary>
-    Vector2 ComputeLeadDirection()
+    Vector2 ComputeLeadDirection(Vector2 targetPos)
     {
         Vector2 launcherPos = transform.position;
-        Vector2 targetPos = _target.CenterOfMass();
 
         // Get target velocity from Pinata's Rigidbody2D
         Vector2 targetVel = Vector2.zero;

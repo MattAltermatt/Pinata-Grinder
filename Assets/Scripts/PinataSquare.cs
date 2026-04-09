@@ -19,6 +19,7 @@ public class PinataSquare : MonoBehaviour
 
     private SpriteRenderer _sr;
     private Pinata _pinata;
+    private Rigidbody2D _parentRb;
     private float _health;
     private float _maxHealth;
     private bool _isDead;
@@ -37,6 +38,7 @@ public class PinataSquare : MonoBehaviour
     public bool IsDead => _isDead;
     public int GridCol => _gridCol;
     public int GridRow => _gridRow;
+    public Rigidbody2D ParentRigidbody => _parentRb;
 
     void Awake()
     {
@@ -60,6 +62,7 @@ public class PinataSquare : MonoBehaviour
         PinataVariantType variant = PinataVariantType.Basic)
     {
         _pinata = parent;
+        _parentRb = parent.GetComponent<Rigidbody2D>();
         _health = health;
         _maxHealth = health;
         _gridCol = col;

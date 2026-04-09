@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public enum WeaponType { None, Saw, Laser, Missile }
+public enum WeaponType { None, Saw, Laser, Missile, BlackHole }
 
 /// <summary>
 /// Abstract base class for weapon groups that mount on stoppers.

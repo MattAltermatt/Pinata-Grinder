@@ -151,6 +151,21 @@ public class StopperFactory
         return group;
     }
 
+    public BlackHoleGroup AttachBlackHole(Stopper stopper)
+    {
+        var stopperPos = (Vector2)stopper.transform.position;
+        var groupGo = new GameObject("BlackHoleGroup");
+        var group = groupGo.AddComponent<BlackHoleGroup>();
+        group.Init(stopperPos, _stopperRadius);
+        group.SetStopper(stopper.transform);
+
+        group.Upgrades.SetInitialInvestment(Economy.Instance.BlackHoleCost);
+
+        stopper.Weapon = group;
+
+        return group;
+    }
+
     public void DestroyStopper(Stopper stopper)
     {
         if (stopper.HasWeapon)

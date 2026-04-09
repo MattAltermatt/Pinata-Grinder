@@ -11,10 +11,12 @@ public class MissileGroup : Weapon
     private const int SlotBlastRadius = 2;
     private const int SlotSpeed       = 3;
     private const int SlotHoming      = 4;
-    private const int TotalSlots      = 5;
+    private const int SlotMinRange    = 5;
+    private const int SlotMaxRange    = 6;
+    private const int TotalSlots      = 7;
 
-    private static readonly int[] BaseCosts = { 8, 10, 8, 5, 12 };
-    private static readonly int[] MaxLevels = { 20, 0, 20, 20, 10 };
+    private static readonly int[] BaseCosts = { 8, 10, 8, 5, 12, 5, 8 };
+    private static readonly int[] MaxLevels = { 20, 0, 20, 20, 10, 20, 20 };
 
     private const float StartFireRate    = 5f;
     private const float MinFireRate      = 0.5f;
@@ -26,6 +28,10 @@ public class MissileGroup : Weapon
     private const float MaxSpeed         = 6f;
     private const float StartHoming      = 0f;
     private const float MaxHoming        = 5f;
+    private const float StartMinRange    = 1.5f;
+    private const float FinalMinRange    = 0.3f;
+    private const float StartMaxRange    = 4f;
+    private const float FinalMaxRange    = 15f;
 
     private MissileLauncher _launcher;
     private WeaponUpgradeData _upgrades;
@@ -87,6 +93,8 @@ public class MissileGroup : Weapon
             case SlotBlastRadius: ApplyBlastRadius(); break;
             case SlotSpeed:       ApplySpeed(); break;
             case SlotHoming:      ApplyHoming(); break;
+            case SlotMinRange:    ApplyMinRange(); break;
+            case SlotMaxRange:    ApplyMaxRange(); break;
         }
     }
 
@@ -122,6 +130,19 @@ public class MissileGroup : Weapon
         return StartHoming + lvl * ((MaxHoming - StartHoming) / MaxLevels[SlotHoming]);
     }
 
+    float CurrentMinRange()
+    {
+        int lvl = _upgrades.GetLevel(SlotMinRange);
+        // Min range decreases with upgrades (shrinks the dead zone)
+        return StartMinRange - lvl * ((StartMinRange - FinalMinRange) / MaxLevels[SlotMinRange]);
+    }
+
+    float CurrentMaxRange()
+    {
+        int lvl = _upgrades.GetLevel(SlotMaxRange);
+        return StartMaxRange + lvl * ((FinalMaxRange - StartMaxRange) / MaxLevels[SlotMaxRange]);
+    }
+
     // ── Apply to all launchers ──
 
     void ApplyFireRate()
@@ -149,6 +170,16 @@ public class MissileGroup : Weapon
         if (_launcher != null) _launcher.SetHomingStrength(CurrentHoming());
     }
 
+    void ApplyMinRange()
+    {
+        if (_launcher != null) _launcher.SetMinRange(CurrentMinRange());
+    }
+
+    void ApplyMaxRange()
+    {
+        if (_launcher != null) _launcher.SetMaxRange(CurrentMaxRange());
+    }
+
     // ── Create launcher ──
 
     void CreateLauncher()
@@ -164,6 +195,8 @@ public class MissileGroup : Weapon
         _launcher.SetBlastRadius(CurrentBlastRadius());
         _launcher.SetMissileSpeed(CurrentSpeed());
         _launcher.SetHomingStrength(CurrentHoming());
+        _launcher.SetMinRange(CurrentMinRange());
+        _launcher.SetMaxRange(CurrentMaxRange());
 
         if (_stopper != null)
             _launcher.SetStopper(_stopper);
@@ -181,6 +214,8 @@ public class MissileGroup : Weapon
         ApplyBlastRadius();
         ApplySpeed();
         ApplyHoming();
+        ApplyMinRange();
+        ApplyMaxRange();
     }
 
     // ── Cleanup ──
@@ -240,6 +275,22 @@ public class MissileGroup : Weapon
                 Description = lvl == 0 ? "None" : "Strength: " + CurrentHoming().ToString("F1"),
                 Icon = GameField.CrosshairSprite(64),
                 IconColor = new Color(0.8f, 0.4f, 1f),
+                Cost = cost, Level = lvl, MaxLevel = maxLvl, IsMaxed = maxed
+            },
+            SlotMinRange => new UpgradeSlotInfo
+            {
+                Name = "Min Range",
+                Description = CurrentMinRange().ToString("F1") + " units",
+                Icon = GameField.CircleSprite(64),
+                IconColor = new Color(1f, 0.5f, 0.3f),
+                Cost = cost, Level = lvl, MaxLevel = maxLvl, IsMaxed = maxed
+            },
+            SlotMaxRange => new UpgradeSlotInfo
+            {
+                Name = "Max Range",
+                Description = CurrentMaxRange().ToString("F1") + " units",
+                Icon = GameField.WallExpandSprite(64),
+                IconColor = new Color(0.3f, 0.8f, 0.5f),
                 Cost = cost, Level = lvl, MaxLevel = maxLvl, IsMaxed = maxed
             },
             _ => default

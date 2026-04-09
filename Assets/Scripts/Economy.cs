@@ -14,6 +14,7 @@ public class Economy : MonoBehaviour
     [SerializeField] private int stopperBaseCost = 20;
     [SerializeField] private int laserBaseCost = 40;
     [SerializeField] private int missileBaseCost = 60;
+    [SerializeField] private int blackHoleBaseCost = 80;
     [SerializeField] private float costMultiplier = 1.6f;
 
     private int _money;
@@ -21,6 +22,7 @@ public class Economy : MonoBehaviour
     private int _stoppersPurchased;
     private int _lasersPurchased;
     private int _missilesPurchased;
+    private int _blackHolesPurchased;
 
     public event Action<int> OnMoneyChanged;
 
@@ -29,6 +31,7 @@ public class Economy : MonoBehaviour
     public int StopperCost => Cost(stopperBaseCost, _stoppersPurchased);
     public int LaserCost => Cost(laserBaseCost, _lasersPurchased);
     public int MissileCost => Cost(missileBaseCost, _missilesPurchased);
+    public int BlackHoleCost => Cost(blackHoleBaseCost, _blackHolesPurchased);
     public int StopperSellPrice => _stoppersPurchased > 0 ? Cost(stopperBaseCost, _stoppersPurchased - 1) : 0;
 
     void Awake()
@@ -48,6 +51,7 @@ public class Economy : MonoBehaviour
     public bool CanAffordStopper() => _money >= StopperCost;
     public bool CanAffordLaser() => _money >= LaserCost;
     public bool CanAffordMissile() => _money >= MissileCost;
+    public bool CanAffordBlackHole() => _money >= BlackHoleCost;
 
     public bool TryBuySaw()
     {
@@ -89,6 +93,16 @@ public class Economy : MonoBehaviour
         return true;
     }
 
+    public bool TryBuyBlackHole()
+    {
+        int cost = BlackHoleCost;
+        if (_money < cost) return false;
+        _money -= cost;
+        _blackHolesPurchased++;
+        OnMoneyChanged?.Invoke(_money);
+        return true;
+    }
+
     /// <summary>
     /// Sell price is the total investment (base purchase + all upgrade costs).
     /// </summary>
@@ -117,6 +131,10 @@ public class Economy : MonoBehaviour
                 if (_missilesPurchased <= 0) return;
                 _missilesPurchased--;
                 break;
+            case WeaponType.BlackHole:
+                if (_blackHolesPurchased <= 0) return;
+                _blackHolesPurchased--;
+                break;
             default: return;
         }
         _money += refund;
@@ -138,22 +156,24 @@ public class Economy : MonoBehaviour
         return Mathf.RoundToInt(baseCost * Mathf.Pow(costMultiplier, count));
     }
 
-    public void CaptureState(out int money, out int saws, out int stoppers, out int lasers, out int missiles)
+    public void CaptureState(out int money, out int saws, out int stoppers, out int lasers, out int missiles, out int blackHoles)
     {
         money = _money;
         saws = _sawsPurchased;
         stoppers = _stoppersPurchased;
         lasers = _lasersPurchased;
         missiles = _missilesPurchased;
+        blackHoles = _blackHolesPurchased;
     }
 
-    public void RestoreState(int money, int saws, int stoppers, int lasers, int missiles)
+    public void RestoreState(int money, int saws, int stoppers, int lasers, int missiles, int blackHoles = 0)
     {
         _money = money;
         _sawsPurchased = saws;
         _stoppersPurchased = stoppers;
         _lasersPurchased = lasers;
         _missilesPurchased = missiles;
+        _blackHolesPurchased = blackHoles;
         OnMoneyChanged?.Invoke(_money);
     }
 

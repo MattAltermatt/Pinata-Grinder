@@ -379,6 +379,7 @@ MonoBehaviour:
   maxSpawnAngle: 35
   gridWidth: 5
   gridHeight: 5
+  squareCount: 0
   squareHealth: 1
   fieldWidth: 6
   oscillateSpeed: 1

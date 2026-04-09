@@ -18,19 +18,20 @@ Colored pinata shapes fall from above and land on the terrain. Your job is to de
 
 ### Stoppers & Weapons
 
-Tap a stopper to open its menu. From there you can buy one of three weapon types:
+Tap a stopper to open its menu. From there you can buy one of four weapon types:
 
 | Weapon | Cost | Description |
 |---|---|---|
 | **Saw Blade** | $8+ | Spinning blades that orbit the stopper and slice through pinatas on contact |
 | **Laser** | $40+ | A turret that locks onto the nearest pinata square and fires a continuous beam |
-| **Missile** | $60+ | A launcher that fires homing AOE projectiles with lead targeting |
+| **Missile** | $60+ | A launcher that fires homing AOE projectiles with lead targeting and min/max range |
+| **Black Hole** | $80+ | A gravity vortex that pulls nearby pinatas inward and damages anything in its core |
 
-Each stopper holds one weapon. Buy more stoppers (top-left button) to field more weapons. Prices increase with each purchase.
+Each stopper holds one weapon. Buy more stoppers (top-left button) to field more weapons. Prices increase with each purchase. Combine weapons strategically — Black Holes pull pinatas into Saw Blade orbits, and cluster them for Missile AOE.
 
 ### Upgrades
 
-**Weapon upgrades** — Tap a stopper that already has a weapon to open the upgrade menu. Each weapon has 4-5 upgrade slots (blades, damage, range, fire rate, etc.). Upgrades cost money and have individual max levels.
+**Weapon upgrades** — Tap a stopper that already has a weapon to open the upgrade menu. Each weapon has 4-7 upgrade slots (blades, damage, range, fire rate, etc.). Upgrades cost money and have individual max levels.
 
 **Global upgrades** — The "Upgrades" button (top-left, below Buy Stopper) opens a panel with 6 upgrades that affect the entire game:
 

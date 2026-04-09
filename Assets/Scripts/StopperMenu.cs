@@ -27,9 +27,13 @@ public class StopperMenu : MonoBehaviour
     private Text _missileCostLabel;
     private Button _buyMissileBtn;
     private Image _buyMissileBg;
+    private Text _blackHoleCostLabel;
+    private Button _buyBlackHoleBtn;
+    private Image _buyBlackHoleBg;
     private GameObject _sawSoldOut;
     private GameObject _laserSoldOut;
     private GameObject _missileSoldOut;
+    private GameObject _blackHoleSoldOut;
 
     // Sell stopper row (inside buy overlay)
     private Text _sellStopperCostLabel;
@@ -110,7 +114,7 @@ public class StopperMenu : MonoBehaviour
         float rowGap = 10f;
         float topSpace = 90f;
         float bottomSpace = 30f;
-        int rowCount = 4; // saw, laser, missile, sell stopper
+        int rowCount = 5; // saw, laser, missile, black hole, sell stopper
         float panelHeight = topSpace + rowCount * rowHeight + (rowCount - 1) * rowGap + bottomSpace;
 
         var panelRect = panel.AddComponent<RectTransform>();
@@ -192,10 +196,16 @@ public class StopperMenu : MonoBehaviour
             out _buyMissileBg, out _buyMissileBtn, out _missileCostLabel, out _missileSoldOut);
         _buyMissileBtn.onClick.AddListener(OnBuyMissileClicked);
 
+        BuildBuyOverlayRow(panel.transform, "Black Hole", "Gravity vortex that pulls and damages",
+            GameField.CircleSprite(), new Color(0.4f, 0.1f, 0.6f),
+            topOffset - (rowHeight + rowGap) * 3f, rowHeight,
+            out _buyBlackHoleBg, out _buyBlackHoleBtn, out _blackHoleCostLabel, out _blackHoleSoldOut);
+        _buyBlackHoleBtn.onClick.AddListener(OnBuyBlackHoleClicked);
+
         // Sell stopper row (red-tinted)
         BuildBuyOverlayRow(panel.transform, "Sell Stopper", "Remove this stopper for a refund",
             GameField.CircleSprite(), new Color(0.35f, 0.35f, 0.4f),
-            topOffset - (rowHeight + rowGap) * 3f, rowHeight,
+            topOffset - (rowHeight + rowGap) * 4f, rowHeight,
             out _sellStopperBg, out _sellStopperBtn, out _sellStopperCostLabel, out _);
         _sellStopperBtn.onClick.AddListener(OnSellStopperClicked);
     }
@@ -743,6 +753,16 @@ public class StopperMenu : MonoBehaviour
         }
     }
 
+    void OnBuyBlackHoleClicked()
+    {
+        if (_currentStopper == null) return;
+        if (Economy.Instance.TryBuyBlackHole())
+        {
+            StopperFactory.Instance.AttachBlackHole(_currentStopper);
+            Hide();
+        }
+    }
+
     void OnSellStopperClicked()
     {
         if (_currentStopper == null) return;
@@ -817,6 +837,12 @@ public class StopperMenu : MonoBehaviour
         bool canAffordMissile = Economy.Instance.CanAffordMissile();
         _buyMissileBg.color = canAffordMissile ? AffordBg : CantAffordBg;
         _buyMissileBtn.interactable = canAffordMissile;
+
+        int blackHoleCost = Economy.Instance.BlackHoleCost;
+        _blackHoleCostLabel.text = "$" + blackHoleCost;
+        bool canAffordBlackHole = Economy.Instance.CanAffordBlackHole();
+        _buyBlackHoleBg.color = canAffordBlackHole ? AffordBg : CantAffordBg;
+        _buyBlackHoleBtn.interactable = canAffordBlackHole;
 
         int sellPrice = Economy.Instance.StopperSellPrice;
         var allStoppers = Stopper.All;

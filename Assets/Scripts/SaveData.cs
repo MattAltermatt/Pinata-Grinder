@@ -12,6 +12,7 @@ public class SaveData
     public int stoppersPurchased;
     public int lasersPurchased;
     public int missilesPurchased;
+    public int blackHolesPurchased;
     public GlobalUpgradesSaveData globalUpgrades;
     public StopperSaveData[] stoppers;
 }
@@ -32,7 +33,7 @@ public class StopperSaveData
 {
     public float posX;
     public float posY;
-    public int weaponType; // WeaponType enum cast to int (0=None, 1=Saw, 2=Laser, 3=Missile)
+    public int weaponType; // WeaponType enum cast to int (0=None, 1=Saw, 2=Laser, 3=Missile, 4=BlackHole)
     public int[] upgradeLevels;
     public int totalInvestment;
     public int directionMultiplier; // 1 or -1, only used by SawGroup

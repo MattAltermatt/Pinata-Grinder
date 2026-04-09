@@ -19,7 +19,7 @@ public class LaserGroup : Weapon
     private const float MaxAimSpeed   = 360f;
     private const float StartRange    = 1.5f;
     private const float StartDamage   = 1f;
-    private const float StartCooldown = 3f;
+    private const float StartCooldown = 2f;
     private const float MinCooldown   = 0.1f;
 
     private Laser _laser;
